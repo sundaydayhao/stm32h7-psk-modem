@@ -3,12 +3,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "psk_modes.h"
 #include "psk_rtty.h"
-
-typedef enum {
-    PSK_MODE_BPSK31 = 0,
-    PSK_MODE_PSK63,
-} psk_mode_t;
 
 typedef struct {
     psk_mode_t mode;
@@ -23,6 +19,7 @@ typedef struct {
     char *out;
     size_t out_size;
     size_t out_len;
+    uint8_t backend_active;
 } psk_modem_t;
 
 typedef struct {
@@ -47,6 +44,8 @@ void psk_modem_set_tone(psk_modem_t *m, int tone_hz);
 psk_mode_t psk_modem_mode(const psk_modem_t *m);
 int psk_modem_tone_hz(const psk_modem_t *m);
 const char *psk_modem_mode_name(psk_mode_t mode);
+const psk_mode_info_t *psk_modem_mode_info(const psk_modem_t *m);
+int psk_modem_mode_supported(psk_mode_t mode);
 void psk_modem_debug_snapshot(const psk_modem_t *m, psk_modem_debug_t *debug);
 size_t psk_modem_process(psk_modem_t *m, const int16_t *samples, size_t count,
                          char *out, size_t out_size);

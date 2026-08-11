@@ -4,7 +4,8 @@
 
 static psk_rtty_mode_t to_backend_mode(psk_mode_t mode)
 {
-    return mode == PSK_MODE_PSK63 ? PSK_RTTY_MODE_PSK63 : PSK_RTTY_MODE_BPSK31;
+    const psk_mode_info_t *info = psk_mode_info(mode);
+    return info->backend_mode;
 }
 
 static void on_char(char c, void *userdata)
@@ -19,6 +20,12 @@ static void on_char(char c, void *userdata)
 
 static void backend_init(psk_modem_t *m)
 {
+    if (!psk_mode_can_decode(m->config.mode)) {
+        memset(&m->rx, 0, sizeof(m->rx));
+        m->backend_active = 0U;
+        return;
+    }
+
     psk_rtty_config_t cfg = {
         .mode = to_backend_mode(m->config.mode),
         .sample_rate_hz = m->config.sample_rate_hz,
@@ -28,6 +35,7 @@ static void backend_init(psk_modem_t *m)
     };
     psk_rtty_rx_init(&m->rx, &cfg);
     m->rx.sq_thresh = m->config.squelch;
+    m->backend_active = 1U;
 }
 
 void psk_modem_init(psk_modem_t *m, const psk_modem_config_t *config)
@@ -66,7 +74,17 @@ int psk_modem_tone_hz(const psk_modem_t *m)
 
 const char *psk_modem_mode_name(psk_mode_t mode)
 {
-    return mode == PSK_MODE_PSK63 ? "PSK63" : "BPSK31";
+    return psk_mode_name(mode);
+}
+
+const psk_mode_info_t *psk_modem_mode_info(const psk_modem_t *m)
+{
+    return psk_mode_info(m->config.mode);
+}
+
+int psk_modem_mode_supported(psk_mode_t mode)
+{
+    return psk_mode_can_decode(mode);
 }
 
 void psk_modem_debug_snapshot(const psk_modem_t *m, psk_modem_debug_t *debug)
@@ -87,7 +105,7 @@ void psk_modem_debug_snapshot(const psk_modem_t *m, psk_modem_debug_t *debug)
     debug->sq_thresh = m->rx.sq_thresh;
     debug->stable_symbols = m->rx.sq_stable_symbols;
     debug->warmup_symbols = m->rx.warmup_symbols;
-    debug->tone_hz = m->rx.config.rx_tone_hz;
+    debug->tone_hz = m->backend_active ? m->rx.config.rx_tone_hz : m->config.rx_tone_hz;
 }
 
 size_t psk_modem_process(psk_modem_t *m, const int16_t *samples, size_t count,
@@ -97,6 +115,9 @@ size_t psk_modem_process(psk_modem_t *m, const int16_t *samples, size_t count,
         return 0;
     }
     out[0] = '\0';
+    if (!m->backend_active) {
+        return 0;
+    }
     m->out = out;
     m->out_size = out_size;
     m->out_len = 0;

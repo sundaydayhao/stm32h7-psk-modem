@@ -76,8 +76,10 @@ target_sources(${PROJECT_NAME} PRIVATE
     Core/Src/sysmem.c
     app/dsp/spectrum.c
     app/board/fire_lcd.c
+    app/modem/psk_modes.c
     app/modem/psk_modem.c
     app/platform/audio_input.c
+    app/platform/touch_gt911.c
     app/ui/display.c
     third_party/psk_rtty/psk_rtty.c
     ${HAL_SRC}

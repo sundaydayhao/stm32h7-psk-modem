@@ -7,6 +7,7 @@
 #include "display.h"
 #include "psk_modem.h"
 #include "spectrum.h"
+#include "touch_gt911.h"
 
 UART_HandleTypeDef huart1;
 
@@ -32,11 +33,13 @@ int main(void)
 
     printf("\r\n[boot] stm32h743iit6 psk modem\r\n");
     display_init();
+    printf("[boot] psk mode table: %lu wav modes, bpsk non-fec decoder active\r\n",
+           (unsigned long)psk_mode_count());
 
     psk_modem_config_t cfg = {
         .mode = PSK_MODE_BPSK31,
         .sample_rate_hz = AUDIO_INPUT_DECODE_RATE_HZ,
-        .rx_tone_hz = 1526,
+        .rx_tone_hz = 1500,
         .squelch = 5,
     };
     psk_modem_init(&g_modem, &cfg);
@@ -51,17 +54,79 @@ int main(void)
     spectrum_t spectrum = {0};
     audio_input_debug_t audio_debug;
     psk_modem_debug_t modem_debug;
+    touch_gt911_state_t touch_state = {0};
     uint32_t last_diag_tick = 0;
     uint32_t last_render_tick = 0;
+    uint32_t last_touch_tick = 0;
+    uint32_t last_touch_retry_tick = 0;
+    uint8_t touch_ready = 0U;
+    uint8_t touch_was_pressed = 0U;
+
+    if (touch_gt911_init() == HAL_OK) {
+        touch_gt911_debug_snapshot(&touch_state);
+        touch_ready = 1U;
+        printf("[touch] gt911 addr=0x%02x id=%s\r\n", touch_state.address >> 1, touch_state.id);
+    } else {
+        touch_gt911_debug_snapshot(&touch_state);
+        printf("[warn] gt911 touch not detected scan=0x%08lx err=0x%08lx\r\n",
+               (unsigned long)touch_state.scan_mask,
+               (unsigned long)touch_state.last_error);
+    }
 
     while (1) {
         const size_t count = audio_input_read(samples, AUDIO_INPUT_DECODE_BLOCK_SAMPLES);
         const uint32_t now = HAL_GetTick();
 
+        if (!touch_state.present && (uint32_t)(now - last_touch_retry_tick) >= 1000U) {
+            last_touch_retry_tick = now;
+            if (touch_gt911_init() == HAL_OK) {
+                touch_gt911_debug_snapshot(&touch_state);
+                touch_ready = 1U;
+                printf("[touch] gt911 addr=0x%02x id=%s recovered\r\n",
+                       touch_state.address >> 1,
+                       touch_state.id);
+            } else {
+                touch_gt911_debug_snapshot(&touch_state);
+            }
+        }
+
+        if ((uint32_t)(now - last_touch_tick) >= 30U) {
+            last_touch_tick = now;
+            if (touch_gt911_read(&touch_state) == HAL_OK) {
+                touch_ready = 1U;
+                if (touch_state.pressed && !touch_was_pressed) {
+                    psk_mode_t selected;
+                    if (display_mode_at(touch_state.x, touch_state.y, &selected)) {
+                        psk_modem_set_mode(&g_modem, selected);
+                        text[0] = '\0';
+                        spectrum.peak_hz = 0;
+                        printf("[mode] selected %s%s at %u,%u\r\n",
+                               psk_modem_mode_name(selected),
+                               psk_modem_mode_supported(selected) ? "" : " (display only)",
+                               touch_state.x,
+                               touch_state.y);
+                        display_render(&spectrum, psk_modem_mode_info(&g_modem),
+                                       psk_modem_tone_hz(&g_modem), text);
+                    } else {
+                        printf("[touch] down raw=%u,%u map=%u,%u miss st=0x%02x\r\n",
+                               touch_state.raw_x,
+                               touch_state.raw_y,
+                               touch_state.x,
+                               touch_state.y,
+                               touch_state.last_status);
+                    }
+                }
+                touch_was_pressed = touch_state.pressed;
+            } else if (touch_ready) {
+                touch_ready = 0U;
+                touch_was_pressed = 0U;
+            }
+        }
+
         if (count > 0U) {
             const size_t got = psk_modem_process(&g_modem, samples, count, decoded, sizeof(decoded));
             if (got > 0U) {
-                print_rx_text("rx31", decoded, got);
+                print_rx_text(psk_modem_mode_name(psk_modem_mode(&g_modem)), decoded, got);
                 const size_t old = strlen(text);
                 if (old + got >= sizeof(text)) {
                     memmove(text, text + sizeof(text) / 2U, sizeof(text) / 2U);
@@ -73,7 +138,7 @@ int main(void)
             if ((uint32_t)(now - last_render_tick) >= 500U) {
                 last_render_tick = now;
                 spectrum_analyze(samples, count, AUDIO_INPUT_DECODE_RATE_HZ, &spectrum);
-                display_render(&spectrum, psk_modem_mode_name(psk_modem_mode(&g_modem)),
+                display_render(&spectrum, psk_modem_mode_info(&g_modem),
                                psk_modem_tone_hz(&g_modem), text);
             }
         }
@@ -82,7 +147,9 @@ int main(void)
             last_diag_tick = now;
             audio_input_debug_snapshot(&audio_debug);
             psk_modem_debug_snapshot(&g_modem, &modem_debug);
-            printf("[diag] blocks=%lu empty=%lu cb=%lu/%lu in=%u lane=%u q=%lu peak=%dHz sq=%d/%d open=%d chars=%lu\r\n",
+            printf("[diag] mode=%s tone=%dHz blocks=%lu empty=%lu cb=%lu/%lu in=%u lane=%u q=%lu peak=%dHz sq=%d/%d open=%d chars=%lu\r\n",
+                   psk_modem_mode_name(psk_modem_mode(&g_modem)),
+                   modem_debug.tone_hz,
                    audio_debug.read_blocks,
                    audio_debug.empty_reads,
                    audio_debug.half_callbacks,

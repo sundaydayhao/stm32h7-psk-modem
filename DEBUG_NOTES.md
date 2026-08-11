@@ -6,12 +6,14 @@
 - Core MCU: STM32H743
 - LCD: 7 inch RGB panel, 800x480, 24-bit RGB interface
 - Audio codec/input: WM8978 over I2C1 control and SPI2/I2S2 RX DMA
+- Touch: GT911-compatible capacitive controller on the LCD I2C bus
 
 ## Working State
 
 - LCD is working full-screen.
 - Waterfall and spectrum are displayed.
 - BPSK31 audio input is decoded and RX text is displayed.
+- Touch mode selection is polled through GT911 and uses the on-screen WAV mode matrix.
 - RX text display preserves lowercase letters.
 - UART diagnostics are enabled at 115200 baud.
 
@@ -87,12 +89,26 @@ File: `app/ui/display.c`
 - Header: `STM32H743 PSK MODEM`
 - Removed older duplicate title and UART line.
 - Main sections:
-  - status row: mode, tone, peak, input status
-  - spectrum/waterfall
-  - RX TEXT
+  - left status row: active mode, baud, tone, peak, input status
+  - left middle: spectrum/waterfall
+  - left bottom: RX TEXT
+  - right full-height: large touch targets for all WAV modes
 - Input status appears as:
   - `IN <avg> <L/R> Q<queued>`
 - `IN` should rise when real audio is entering WM8978.
+- The right-side `MODE SELECT` matrix is touch selectable.
+  - Green modes are currently backed by the real BPSK decoder.
+  - Gray modes are selectable/displayed, but QPSK/8PSK/FEC/multi-carrier decoders are still pending.
+
+File: `app/platform/touch_gt911.c`
+
+- GT911 is polled over I2C1 after audio initialization.
+- The driver probes both common GT911 addresses: `0x5D` and `0x14`.
+- Default coordinate mapping is `800x480` direct orientation.
+- If the panel reports rotated/mirrored coordinates, adjust:
+  - `TOUCH_GT911_SWAP_XY`
+  - `TOUCH_GT911_INVERT_X`
+  - `TOUCH_GT911_INVERT_Y`
 
 File: `app/board/fire_lcd.c`
 
