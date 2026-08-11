@@ -1,0 +1,11 @@
+build/
+.toolchain/
+.magic-lamp-cache/
+downloads/
+*.elf
+*.map
+*.bin
+*.hex
+*.list
+*.su
+compile_commands.json
