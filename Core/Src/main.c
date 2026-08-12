@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "audio_input.h"
 #include "display.h"
@@ -13,12 +14,32 @@ UART_HandleTypeDef huart1;
 
 static psk_modem_t g_modem;
 static volatile uint8_t g_trace_ready;
+static char g_rx_log[256];
+static size_t g_rx_log_len;
+static uint32_t g_last_rx_log_tick;
+static uint8_t g_serial_test_mode;
+static uint8_t g_rx_log_hex_mode;
+
+#define RX_INPUT_OPEN_ABS_AVG 500U
+#define RX_LOG_FLUSH_BYTES 160U
+#define RX_LOG_FLUSH_MS 250U
 
 void SystemClock_Config(void);
 static void MPU_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void print_rx_text(const char *tag, const char *text, size_t len);
+static void print_rx_hex(const char *text, size_t len);
+static void append_rx_log(const char *text, size_t len, uint32_t now);
+static void flush_rx_log(uint32_t now);
+static void reset_rx_log(void);
+static void poll_serial_commands(char *text, size_t text_len, spectrum_t *spectrum);
+static void select_mode(psk_mode_t selected, char *text, size_t text_len, spectrum_t *spectrum,
+                        const char *source);
+static int find_mode_by_name(const char *name, psk_mode_t *mode);
+static int ascii_equal_ignore_case(const char *a, const char *b);
+static int ascii_starts_ignore_case(const char *text, const char *prefix);
+static char *trim_ascii(char *s);
 
 int main(void)
 {
@@ -38,7 +59,7 @@ int main(void)
 
     psk_modem_config_t cfg = {
         .mode = PSK_MODE_BPSK31,
-        .sample_rate_hz = AUDIO_INPUT_DECODE_RATE_HZ,
+        .sample_rate_hz = AUDIO_INPUT_ACTUAL_DECODE_RATE_HZ,
         .rx_tone_hz = 1500,
         .squelch = 5,
     };
@@ -77,7 +98,9 @@ int main(void)
         const size_t count = audio_input_read(samples, AUDIO_INPUT_DECODE_BLOCK_SAMPLES);
         const uint32_t now = HAL_GetTick();
 
-        if (!touch_state.present && (uint32_t)(now - last_touch_retry_tick) >= 1000U) {
+        poll_serial_commands(text, sizeof(text), &spectrum);
+
+        if (!g_serial_test_mode && !touch_state.present && (uint32_t)(now - last_touch_retry_tick) >= 1000U) {
             last_touch_retry_tick = now;
             if (touch_gt911_init() == HAL_OK) {
                 touch_gt911_debug_snapshot(&touch_state);
@@ -90,25 +113,19 @@ int main(void)
             }
         }
 
-        if ((uint32_t)(now - last_touch_tick) >= 30U) {
+        if (!g_serial_test_mode && (uint32_t)(now - last_touch_tick) >= 30U) {
             last_touch_tick = now;
             if (touch_gt911_read(&touch_state) == HAL_OK) {
                 touch_ready = 1U;
                 if (touch_state.pressed && !touch_was_pressed) {
                     psk_mode_t selected;
                     if (display_mode_at(touch_state.x, touch_state.y, &selected)) {
-                        psk_modem_set_mode(&g_modem, selected);
-                        text[0] = '\0';
-                        spectrum.peak_hz = 0;
-                        printf("[mode] selected %s%s raw=%u,%u map=%u,%u\r\n",
-                               psk_modem_mode_name(selected),
-                               psk_modem_mode_supported(selected) ? "" : " (display only)",
+                        select_mode(selected, text, sizeof(text), &spectrum, "touch");
+                        printf("[touch] raw=%u,%u map=%u,%u\r\n",
                                touch_state.raw_x,
                                touch_state.raw_y,
                                touch_state.x,
                                touch_state.y);
-                        display_render(&spectrum, psk_modem_mode_info(&g_modem),
-                                       psk_modem_tone_hz(&g_modem), text);
                     } else {
                         printf("[touch] down raw=%u,%u map=%u,%u miss st=0x%02x\r\n",
                                touch_state.raw_x,
@@ -126,9 +143,15 @@ int main(void)
         }
 
         if (count > 0U) {
-            const size_t got = psk_modem_process(&g_modem, samples, count, decoded, sizeof(decoded));
+            uint32_t block_abs_sum = 0U;
+            for (size_t i = 0; i < count; ++i) {
+                block_abs_sum += (uint32_t)abs((int)samples[i]);
+            }
+            const uint32_t block_abs_avg = block_abs_sum / count;
+            const size_t got = (block_abs_avg >= RX_INPUT_OPEN_ABS_AVG) ?
+                               psk_modem_process(&g_modem, samples, count, decoded, sizeof(decoded)) : 0U;
             if (got > 0U) {
-                print_rx_text(psk_modem_mode_name(psk_modem_mode(&g_modem)), decoded, got);
+                append_rx_log(decoded, got, now);
                 const size_t old = strlen(text);
                 if (old + got >= sizeof(text)) {
                     memmove(text, text + sizeof(text) / 2U, sizeof(text) / 2U);
@@ -137,15 +160,18 @@ int main(void)
                 strncat(text, decoded, sizeof(text) - strlen(text) - 1U);
             }
 
-            if ((uint32_t)(now - last_render_tick) >= 500U) {
+            if (!g_serial_test_mode && (uint32_t)(now - last_render_tick) >= 500U) {
                 last_render_tick = now;
-                spectrum_analyze(samples, count, AUDIO_INPUT_DECODE_RATE_HZ, &spectrum);
+                spectrum_analyze(samples, count, AUDIO_INPUT_ACTUAL_DECODE_RATE_HZ, &spectrum);
                 display_render(&spectrum, psk_modem_mode_info(&g_modem),
                                psk_modem_tone_hz(&g_modem), text);
             }
+        } else {
+            flush_rx_log(now);
         }
 
         if ((uint32_t)(now - last_diag_tick) >= 2000U) {
+            flush_rx_log(now);
             last_diag_tick = now;
             audio_input_debug_snapshot(&audio_debug);
             psk_modem_debug_snapshot(&g_modem, &modem_debug);
@@ -166,13 +192,243 @@ int main(void)
                    modem_debug.chars);
         }
 
-        display_task();
+        if (!g_serial_test_mode) {
+            display_task();
+        }
     }
+}
+
+static void append_rx_log(const char *text, size_t len, uint32_t now)
+{
+    while (len > 0U) {
+        const size_t room = sizeof(g_rx_log) - g_rx_log_len;
+        if (room == 0U) {
+            flush_rx_log(now);
+            continue;
+        }
+        const size_t n = (len < room) ? len : room;
+        memcpy(&g_rx_log[g_rx_log_len], text, n);
+        g_rx_log_len += n;
+        text += n;
+        len -= n;
+
+        if (g_rx_log_len >= RX_LOG_FLUSH_BYTES || g_rx_log_len == sizeof(g_rx_log)) {
+            flush_rx_log(now);
+        }
+    }
+
+    if (g_rx_log_len > 0U && (uint32_t)(now - g_last_rx_log_tick) >= RX_LOG_FLUSH_MS) {
+        flush_rx_log(now);
+    }
+}
+
+static void flush_rx_log(uint32_t now)
+{
+    if (g_rx_log_len == 0U) {
+        return;
+    }
+    if (g_rx_log_hex_mode) {
+        print_rx_hex(g_rx_log, g_rx_log_len);
+    } else {
+        print_rx_text(NULL, g_rx_log, g_rx_log_len);
+    }
+    g_rx_log_len = 0U;
+    g_last_rx_log_tick = now;
+}
+
+static void reset_rx_log(void)
+{
+    g_rx_log_len = 0U;
+    g_last_rx_log_tick = HAL_GetTick();
+}
+
+static void poll_serial_commands(char *text, size_t text_len, spectrum_t *spectrum)
+{
+    static char line[64];
+    static size_t used;
+    uint8_t ch;
+    unsigned drained = 0U;
+
+    while (drained < 64U) {
+        const uint32_t isr = huart1.Instance->ISR;
+        if ((isr & (USART_ISR_ORE | USART_ISR_FE | USART_ISR_NE | USART_ISR_PE)) != 0U) {
+            __HAL_UART_CLEAR_FLAG(&huart1, UART_CLEAR_OREF | UART_CLEAR_FEF |
+                                           UART_CLEAR_NEF | UART_CLEAR_PEF);
+            huart1.ErrorCode = HAL_UART_ERROR_NONE;
+        }
+        if ((huart1.Instance->ISR & USART_ISR_RXNE_RXFNE) == 0U) {
+            break;
+        }
+        ch = (uint8_t)(huart1.Instance->RDR & 0xFFU);
+        drained++;
+        if (ch == '\r' || ch == '\n') {
+            if (used == 0U) {
+                continue;
+            }
+            line[used] = '\0';
+            used = 0U;
+
+            char *cmd = trim_ascii(line);
+            if (*cmd == '\0') {
+                continue;
+            }
+
+            if (ascii_starts_ignore_case(cmd, "MODE")) {
+                char *arg = cmd + 4;
+                if (*arg == '=' || *arg == ':') {
+                    arg++;
+                }
+                arg = trim_ascii(arg);
+                psk_mode_t mode;
+                if (find_mode_by_name(arg, &mode)) {
+                    select_mode(mode, text, text_len, spectrum, "serial");
+                } else {
+                    printf("[cmd] error unknown mode '%s'\r\n", arg);
+                }
+            } else if (ascii_starts_ignore_case(cmd, "TONE")) {
+                char *arg = trim_ascii(cmd + 4);
+                const int tone_hz = atoi(arg);
+                psk_modem_set_tone(&g_modem, tone_hz);
+                if (text_len > 0U) {
+                    text[0] = '\0';
+                }
+                if (spectrum) {
+                    spectrum->peak_hz = 0;
+                }
+                printf("[tone] selected %dHz source=serial\r\n", psk_modem_tone_hz(&g_modem));
+                if (!g_serial_test_mode) {
+                    display_render(spectrum, psk_modem_mode_info(&g_modem),
+                                   psk_modem_tone_hz(&g_modem), text ? text : "");
+                }
+            } else if (ascii_starts_ignore_case(cmd, "TEST")) {
+                char *arg = trim_ascii(cmd + 4);
+                g_serial_test_mode = (atoi(arg) != 0) ? 1U : 0U;
+                reset_rx_log();
+                printf("[test] serial=%u\r\n", g_serial_test_mode);
+            } else if (ascii_starts_ignore_case(cmd, "LOG")) {
+                char *arg = trim_ascii(cmd + 3);
+                if (*arg == '=' || *arg == ':') {
+                    arg++;
+                }
+                arg = trim_ascii(arg);
+                g_rx_log_hex_mode = ascii_equal_ignore_case(arg, "HEX") ? 1U : 0U;
+                reset_rx_log();
+                printf("[log] rx=%s\r\n", g_rx_log_hex_mode ? "HEX" : "TEXT");
+            } else if (ascii_equal_ignore_case(cmd, "STATUS")) {
+                printf("[status] mode=%s tone=%dHz supported=%d log=%s\r\n",
+                       psk_modem_mode_name(psk_modem_mode(&g_modem)),
+                       psk_modem_tone_hz(&g_modem),
+                       psk_modem_mode_supported(psk_modem_mode(&g_modem)),
+                       g_rx_log_hex_mode ? "HEX" : "TEXT");
+            } else {
+                printf("[cmd] error unknown '%s'\r\n", cmd);
+            }
+            continue;
+        }
+
+        if (ch == '\b' || ch == 0x7FU) {
+            if (used > 0U) {
+                used--;
+            }
+            continue;
+        }
+
+        if (ch >= 32U && ch <= 126U && used + 1U < sizeof(line)) {
+            line[used++] = (char)ch;
+        } else if (used + 1U >= sizeof(line)) {
+            used = 0U;
+            printf("[cmd] error line too long\r\n");
+        }
+    }
+}
+
+static void select_mode(psk_mode_t selected, char *text, size_t text_len, spectrum_t *spectrum,
+                        const char *source)
+{
+    flush_rx_log(HAL_GetTick());
+    reset_rx_log();
+    psk_modem_set_mode(&g_modem, selected);
+    if (text_len > 0U) {
+        text[0] = '\0';
+    }
+    if (spectrum) {
+        spectrum->peak_hz = 0;
+    }
+    printf("[mode] selected %s%s source=%s\r\n",
+           psk_modem_mode_name(selected),
+           psk_modem_mode_supported(selected) ? "" : " (display only)",
+           source ? source : "unknown");
+    display_render(spectrum, psk_modem_mode_info(&g_modem),
+                   psk_modem_tone_hz(&g_modem), text ? text : "");
+}
+
+static int find_mode_by_name(const char *name, psk_mode_t *mode)
+{
+    for (size_t i = 0; i < psk_mode_count(); ++i) {
+        const psk_mode_info_t *info = psk_mode_info_at(i);
+        if (info && ascii_equal_ignore_case(name, info->name)) {
+            if (mode) {
+                *mode = info->id;
+            }
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int ascii_equal_ignore_case(const char *a, const char *b)
+{
+    while (*a != '\0' && *b != '\0') {
+        char ca = *a++;
+        char cb = *b++;
+        if (ca >= 'a' && ca <= 'z') {
+            ca = (char)(ca - 'a' + 'A');
+        }
+        if (cb >= 'a' && cb <= 'z') {
+            cb = (char)(cb - 'a' + 'A');
+        }
+        if (ca != cb) {
+            return 0;
+        }
+    }
+    return *a == '\0' && *b == '\0';
+}
+
+static int ascii_starts_ignore_case(const char *text, const char *prefix)
+{
+    while (*prefix != '\0') {
+        char ct = *text++;
+        char cp = *prefix++;
+        if (ct >= 'a' && ct <= 'z') {
+            ct = (char)(ct - 'a' + 'A');
+        }
+        if (cp >= 'a' && cp <= 'z') {
+            cp = (char)(cp - 'a' + 'A');
+        }
+        if (ct != cp) {
+            return 0;
+        }
+    }
+    return *text == '\0' || *text == ' ' || *text == '\t' || *text == '=' || *text == ':';
+}
+
+static char *trim_ascii(char *s)
+{
+    while (*s == ' ' || *s == '\t') {
+        s++;
+    }
+    char *end = s + strlen(s);
+    while (end > s && (end[-1] == ' ' || end[-1] == '\t')) {
+        *--end = '\0';
+    }
+    return s;
 }
 
 static void print_rx_text(const char *tag, const char *text, size_t len)
 {
-    printf("[%s] ", tag ? tag : "rx");
+    if (tag) {
+        printf("[%s] ", tag);
+    }
     for (size_t i = 0; i < len; ++i) {
         const unsigned char c = (unsigned char)text[i];
         if (c >= 32U && c <= 126U) {
@@ -184,6 +440,20 @@ static void print_rx_text(const char *tag, const char *text, size_t len)
         } else {
             printf("\\x%02X", c);
         }
+    }
+    printf("\r\n");
+}
+
+static void print_rx_hex(const char *text, size_t len)
+{
+    static const char hex[] = "0123456789ABCDEF";
+
+    printf("[rxhex]");
+    for (size_t i = 0; i < len; ++i) {
+        const unsigned char c = (unsigned char)text[i];
+        putchar(' ');
+        putchar(hex[c >> 4]);
+        putchar(hex[c & 0x0FU]);
     }
     printf("\r\n");
 }

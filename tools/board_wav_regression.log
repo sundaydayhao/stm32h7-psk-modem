@@ -1,0 +1,556 @@
+# board WAV regression 2026-08-12T16:11:54.7765644+08:00
+[test] serial=1
+[log] rx=HEX
+[diag] mode=BPSK63F tone=1500Hz blocks=105004 empty=1557451391 cb=55978/55978 in=126 lane=1 q=0 peak=31Hz sq=99/5 open=1 chars=924
+z supported=1 log=HEX
+[mode] selected 8PSK125F source=serial
+[diag] mode=8PSK125F tone=1500Hz blocks=105509 empty=1565935769 cb=56232/56232 in=125 lane=1 q=0 peak=0Hz sq=10/5 open=0 chars=0
+[rxhex] BA
+[rxhex] 6E 63 74 B4 E0 73
+[rxhex] 20 20 6E 44 D0 75 65
+[rxhex] 74 20 2E 6E F5 20 64
+[rxhex] 6C 20 50 20 55 6B 6F 69
+[rxhex] 7A 20 54 6E 65 64 75
+[diag] mode=8PSK125F tone=1500Hz blocks=105750 empty=1566380731 cb=56361/56360 in=6611 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=36
+[rxhex] 76 20 3B 1A B0
+[rxhex] 6F 65 EC 2C A3
+[rxhex] 69 70 6F 66 75 6F
+[rxhex] 36 65 67 19
+[rxhex] D0 41 69 CC
+[rxhex] 05 6E 20 3B 08 C6
+[rxhex] DF 74 10
+[diag] mode=8PSK125F tone=1500Hz blocks=105959 empty=1566380731 cb=56488/56488 in=4976 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=69
+[rxhex] 69 72 49 70 76 20
+[rxhex] 6B 61 75 6E 6E 79 75
+[rxhex] 6A B4 69 AC
+[rxhex] 41 72 69 74 6B 44
+[rxhex] ED 13 EE 74 64
+[rxhex] 74 6A 75 A8 74 6F
+[rxhex] 75 4E FF 20 BA
+[rxhex] 2D 20 20
+[diag] mode=8PSK125F tone=1500Hz blocks=106162 empty=1566380731 cb=56616/56615 in=6644 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=111
+[rxhex] AE 65 76 20 6E 43 74
+[rxhex] 20 6E 6F E1 A3 F5
+[rxhex] AB C6
+[rxhex] F6 6D 41 74 2B
+[rxhex] 20 20 09 6F
+[rxhex] EE D8 69 71 6E
+[rxhex] 74 6F 75 6F 66 65 37
+[diag] mode=8PSK125F tone=1500Hz blocks=106364 empty=1566380731 cb=56743/56743 in=6901 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=147
+[rxhex] 57 20 2F 20 6C 5F
+[rxhex] 4F 74 44 72 62 61
+[rxhex] 63 65 62 61 79 75 6F
+[rxhex] 50 48 69 6D 5D
+[rxhex] 54 F7 6F 77 67
+[rxhex] 68 20 23 43
+[rxhex] 32 77 69 76
+[rxhex] 66 41 5D 65
+[diag] mode=8PSK125F tone=1500Hz blocks=106566 empty=1566380731 cb=56871/56870 in=4822 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=188
+[rxhex] 20 08 6E 61 A8
+[rxhex] 6F BA 64 73 20 6F 6C
+[rxhex] 20 20 65 69 65 6E 48 74
+[rxhex] C1 63 62 66 75 6E
+[rxhex] 69 AF 67 20 65 26
+[rxhex] 46 4F 74 6E D9
+[rxhex] F4 61 3B 69 76
+[rxhex] 20 20 55
+[diag] mode=8PSK125F tone=1500Hz blocks=106768 empty=1566380731 cb=56998/56997 in=5697 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=233
+[rxhex] AF 20 20 20 6F 65 66
+[rxhex] 41 F2 1D
+[rxhex] 73 20 0F 74 65 D2 65
+[rxhex] A9 73 64 CF 20 20
+[rxhex] 75 5A B9 6C 33
+[rxhex] AB 65 61 61 74 73
+[rxhex] D9 D1 4D
+[rxhex] 20
+[diag] mode=8PSK125F tone=1500Hz blocks=106970 empty=1566380731 cb=57125/57124 in=7109 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=271
+[rxhex] AE 20 21 62
+[rxhex] A8 74 C8 20 44
+[rxhex] 52 63 6D 76 70 1D
+[rxhex] 20 69 B9 73 6C 40
+[rxhex] 73 6E D8 2C 65 6F 20
+[rxhex] 30 61 20 5A 65 6F 6E
+[rxhex] 73 6F 3A 64 20
+[diag] mode=8PSK125F tone=1500Hz blocks=107172 empty=1566380731 cb=57252/57252 in=6748 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=311
+[rxhex] 09 72 67 61 6F 69 B3
+[rxhex] 6E 20 4A 72 65 57 65
+[rxhex] 41 73 68 F2 3A
+[rxhex] 69 78 04 AA 61
+[rxhex] 65 EF 73
+[rxhex] 6A 68 A5 64 69 47
+[rxhex] 5F 65 D0 26 20
+[diag] mode=8PSK125F tone=1500Hz blocks=107375 empty=1566380731 cb=57380/57379 in=5656 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=349
+[rxhex] 0A 02 20 44
+[rxhex] 04 B0 64 4D
+[rxhex] 65 74 19 6A 01
+[rxhex] 20 67 2C 75 F2 65
+[rxhex] 75 20 62 74 17 77
+[rxhex] 71 61 74 6E 79 20 25 72
+[rxhex] B5
+[diag] mode=8PSK125F tone=1500Hz blocks=107577 empty=1566380731 cb=57507/57507 in=4882 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=383
+[rxhex] AF 75 70 64 4D 25
+[rxhex] 60 F9 5A
+[rxhex] BC 61 65 65 46 6E
+[rxhex] 20 74 74 EF 6D
+[rxhex] 5A 20 EB 69 20 20 55
+[rxhex] A7 66 20 20 65 5E
+[rxhex] 0C D9 72
+[rxhex] 6F 20
+[diag] mode=8PSK125F tone=1500Hz blocks=107779 empty=1566380731 cb=57635/57634 in=5913 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=421
+[rxhex] 20 EF 65 20 14 20 74 74 20
+[rxhex] 50 AA 20 33 A2
+[rxhex] D1 30 31 70
+[rxhex] 30 20 73 6E 74 65 6F 64
+[rxhex] 04 74 4E 6C 20 20 B8
+[rxhex] A7 6E 6C 6E 20 F4
+[rxhex] 65 64 20 77 74
+[diag] mode=8PSK125F tone=1500Hz blocks=107981 empty=1566380731 cb=57762/57762 in=6558 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=465
+[rxhex] 20 BD 51 39 7A
+[rxhex] 5F C4 FF
+[rxhex] 7E 6E 6F A2
+[rxhex] 6E 74 47 75 61 6E 6F
+[rxhex] 13 DB 6E 20
+[rxhex] 07 5E 02
+[rxhex] 43 D1 13
+[rxhex] 20 4D 20
+[diag] mode=8PSK125F tone=1500Hz blocks=108184 empty=1566380731 cb=57890/57889 in=6473 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=497
+[rxhex] 71 DB 66 6E
+[rxhex] 76 3D 0F
+[rxhex] CD A5
+[rxhex] 76 6D 5A 65 73 E3
+[rxhex] FB FE 20
+[rxhex] 40 4C 6F 65 65 01
+[rxhex] 49 CB F7
+[diag] mode=8PSK125F tone=1500Hz blocks=108386 empty=1566380731 cb=58017/58016 in=6170 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=524
+[rxhex] 45 6F 74 05 6E 6C
+[rxhex] 66 53 20 20 63 20 06
+[rxhex] CE 41 30 6C 20 61
+[rxhex] 7A D7 74 61
+[rxhex] 66 6E 20 61 64 52
+[rxhex] 49 C4 65 3E
+[rxhex] 13 A1 46 20 74 65
+[diag] mode=8PSK125F tone=1500Hz blocks=108588 empty=1566380731 cb=58144/58144 in=5690 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=563
+[rxhex] 39 46 76 CD
+[rxhex] 2C 59 75 AD
+[rxhex] 6F 1C 3C 62 74 65
+[rxhex] 15 40 65 62 15
+[rxhex] 6E 65 20 CD 61 6B
+[rxhex] C7 74 A6 65 DA
+[rxhex] 63 C2 68 66
+[diag] mode=8PSK125F tone=1500Hz blocks=108791 empty=1566380731 cb=58272/58271 in=6454 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=597
+[rxhex] 0F 7D 20
+[rxhex] FB 65 65 6F 20 AA 65
+[rxhex] 20 25 74 74 64 75 70
+[rxhex] 27 20 20 43 62 74
+[rxhex] 49 20 CD C1 44
+[rxhex] BA 29 DA 7B 61
+[rxhex] 74 77 0A
+[diag] mode=8PSK125F tone=1500Hz blocks=108993 empty=1566380731 cb=58399/58398 in=6143 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=633
+[rxhex] 22 75 5E 65 65 70 79
+[rxhex] 04 75 65 A3 74 65
+[rxhex] 69 20 BA 75 74 AD
+[rxhex] D0 74 69 F4 20 20
+[rxhex] 0F 20 C8 74 DF
+[rxhex] 3D C0 7C 6F 4E
+[rxhex] 4E 74 2C
+[diag] mode=8PSK125F tone=1500Hz blocks=109195 empty=1566380731 cb=58526/58526 in=5710 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=671
+[rxhex] 4C 1D 46 6D 62 79
+[rxhex] 33 6C 20 3E F3
+[rxhex] 78 74 46 72 70 AB 65
+[rxhex] 25 6F 1B
+[rxhex] B8 19 68 69 6D
+[rxhex] 10 72 29 20 74
+[rxhex] 65 20 63 6F 40
+[diag] mode=8PSK125F tone=1500Hz blocks=109398 empty=1566380731 cb=58654/58653 in=6600 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=707
+[rxhex] DA 6E 74 73 67 E4
+[rxhex] 69 20 72 A5 16
+[rxhex] 2F 6F B8 4A
+[rxhex] A9 AE
+[rxhex] C6 72 64 C5 20 52
+[rxhex] 45 69 79 57 6E
+[rxhex] FB 6F 73 05
+[diag] mode=8PSK125F tone=1500Hz blocks=109600 empty=1566380731 cb=58781/58781 in=4287 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=739
+[rxhex] 24 6C 71 74 57 20 20 72
+[rxhex] 3E 6E 0F AA
+[rxhex] 33 B4 B4
+[rxhex] 50 6F 6E 20 6F 20 20 20 76
+[rxhex] 41 6E C8 20 57
+[rxhex] 4F 47 B5 73 6C
+[rxhex] 3E 6F 65 73 CB
+[rxhex] 5B
+[diag] mode=8PSK125F tone=1500Hz blocks=109802 empty=1566380731 cb=58909/58908 in=4876 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=779
+[rxhex] DA 69 5D F4
+[rxhex] 73 7C 78 53
+[rxhex] 61 5D 6E C8
+[rxhex] 73 C6 D9 70
+[rxhex] E9 63 2E 20 76
+[rxhex] 63 74 20 4B 61 4C 65
+[rxhex] 67 20 69 47 68 6E 76
+[diag] mode=8PSK125F tone=1500Hz blocks=110005 empty=1566380731 cb=59036/59035 in=5711 lane=1 q=3 peak=0Hz sq=99/5 open=1 chars=814
+[rxhex] AC 6F 6E 65
+[rxhex] 40 14
+[rxhex] 05 74 4C 6E
+[rxhex] 17 D3 74 65 20
+[rxhex] 44 A1 6E 20 74 6E 6B
+[rxhex] F2 74 7D 20 A1 74
+[rxhex] 44 69 64 F0 6E
+[rxhex] 6B D6 75
+[diag] mode=8PSK125F tone=1500Hz blocks=110207 empty=1566380731 cb=59163/59163 in=5960 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=850
+[rxhex] 01 65 6C E4 CF
+[rxhex] 6E AF 75 49
+[rxhex] 63 C5 75 6F E1
+[rxhex] D0 74 14 71
+[rxhex] 4C 20 6E BB F3
+[rxhex] 75 74 30 20 C9
+[rxhex] D3 E7 20
+[diag] mode=8PSK125F tone=1500Hz blocks=110409 empty=1566380731 cb=59291/59290 in=7159 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=881
+[rxhex] A0 61 7D 6C
+[rxhex] 17 73 0B
+[rxhex] 6B 6C 18
+[rxhex] D3 20 B7 79 20 65
+[rxhex] 65 69 72 57 20 74 6F 20
+[rxhex] 20 6E 6C 69 CA
+[rxhex] 79 3A D4
+[diag] mode=8PSK125F tone=1500Hz blocks=110612 empty=1566380731 cb=59418/59418 in=4883 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=913
+[rxhex] 4E 16 10 63 DE
+[rxhex] ED 71 5D 20 C2
+[rxhex] AD 4E 61
+[rxhex] B4 4B 20 1A
+[rxhex] AA 6A 74 49 69 20
+[rxhex] 65 5C 20 06 20
+[rxhex] 6C 66
+[diag] mode=8PSK125F tone=1500Hz blocks=110814 empty=1566380731 cb=59545/59545 in=5198 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=943
+[rxhex] 40 20 F2
+[rxhex] 2A 20 61 CE
+[rxhex] 3A 2E A0
+[rxhex] AC 20 2D FD 66
+[rxhex] 62 A9 58 6E 74
+[rxhex] 7B 65 B0 B1 20 63
+[rxhex] 6E 69 74 65 20 65
+[diag] mode=8PSK125F tone=1500Hz blocks=111016 empty=1566380731 cb=59673/59672 in=7069 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=975
+[rxhex] A3 E8 74 74 20 20 08
+[rxhex] 1C 61 20 B0 FC
+[rxhex] B5 20 20 65 74 69
+[rxhex] 5C 20 77 26
+[rxhex] 61 20 61 0C 64 20 20 20
+[rxhex] 69 6F 36 72 6F 6E
+[rxhex] 31 F5 20 20 F9 65
+[rxhex] 6F 34
+[diag] mode=8PSK125F tone=1500Hz blocks=111219 empty=1566380731 cb=59800/59800 in=6393 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=1019
+[rxhex] 6E 6F 20 6F 48 6F 20 4E
+[rxhex] A6 65 30 A4 A6 20
+[rxhex] 6D 2B E1 65 54
+[rxhex] 03 6D F2 46 6E
+[rxhex] 38 63 69 74 C9
+[rxhex] 0C 6E 65 5A 20 6F
+[rxhex] AF 3F 55 20 20 34
+[rxhex] 6C
+[diag] mode=8PSK125F tone=1500Hz blocks=111421 empty=1566380731 cb=59928/59927 in=4987 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=1061
+[rxhex] 50 45 40 E5
+[rxhex] 6C 68 6D C0 5F
+[rxhex] 72 65 1B 41 20
+[rxhex] 46 18 F4 20 4D
+[rxhex] C8 74 75 CD
+[rxhex] 67 65 C2 69 70 64
+[rxhex] 55 20 6F 21 76 D1
+[diag] mode=8PSK125F tone=1500Hz blocks=111623 empty=1566380731 cb=60055/60055 in=5085 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=1096
+[rxhex] 41 52 35 69 A5
+[rxhex] 61 F0 65 20 31 31
+[rxhex] 5D 76 AF 70
+[rxhex] 20 A7 0F 69 75
+[rxhex] 71 62 6F 65 20 69 64
+[rxhex] 6D 77 50 3F 20
+[rxhex] ED 78 62 A9 65
+[diag] mode=8PSK125F tone=1500Hz blocks=111826 empty=1566380731 cb=60183/60182 in=5287 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=1133
+[rxhex] B0 7D 68 6D
+[rxhex] 28 6F 4D BB 6F
+[rxhex] 46 06 4A 2B
+[rxhex] 68 77 74 E7 65
+[rxhex] 6F 3B 20 20 6F 13
+[rxhex] BD 58 74 63 65
+[rxhex] A4 65 73 7A 38
+[rxhex] 67 5B
+[diag] mode=8PSK125F tone=1500Hz blocks=112028 empty=1566380731 cb=60310/60309 in=6368 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=1169
+[rxhex] 64 58 05 70 69 74
+[rxhex] 38 65 6E 20 AC 61
+[rxhex] 6E 6C 23 65 13
+[rxhex] 6D 65 72 73 7B F0
+[rxhex] B4 4D 61 53 B1
+[rxhex] 35 63 0B 4F 74 74
+[rxhex] 7C 61
+[diag] mode=8PSK125F tone=1500Hz blocks=112235 empty=1566568914 cb=60437/60436 in=119 lane=1 q=0 peak=0Hz sq=99/5 open=1 chars=1205
+[diag] mode=8PSK125F tone=1500Hz blocks=112489 empty=1570881892 cb=60564/60563 in=123 lane=1 q=0 peak=0Hz sq=99/5 open=1 chars=1205
+[diag] mode=8PSK125F tone=1500Hz blocks=112743 empty=1575194807 cb=60691/60690 in=131 lane=1 q=0 peak=0Hz sq=99/5 open=1 chars=1205
+[diag] mode=8PSK125F tone=1500Hz blocks=112998 empty=1579506923 cb=60818/60818 in=133 lane=1 q=0 peak=0Hz sq=99/5 open=1 chars=1205
+[mode] selected 8PSK250F source=serial
+[diag] mode=8PSK250F tone=1500Hz blocks=113503 empty=1588002280 cb=61072/61072 in=131 lane=1 q=0 peak=0Hz sq=10/5 open=0 chars=0
+[rxhex] 74
+[rxhex] 2A BA 20 B3 71 61 20
+[rxhex] 66 58 53 62 72 05 20
+[rxhex] 78 CE 71 74 20 20 74 7C
+[rxhex] 77 AF 29 69 63 74 20
+[rxhex] 54 EF 39 57
+[diag] mode=8PSK250F tone=1500Hz blocks=113638 empty=1588429862 cb=61201/61201 in=5257 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=34
+[rxhex] A6 CF 7A 20 70 2C
+[rxhex] 72 74 4B 76 6E 65 6F EB
+[rxhex] F2 20 61 7D 7A 69 B2 20 65
+[rxhex] F5 10 72 20
+[rxhex] 74 68 65 6C 05
+[rxhex] 09 74 5F 20 65
+[rxhex] E0 74 64
+[diag] mode=8PSK250F tone=1500Hz blocks=113750 empty=1588429862 cb=61330/61329 in=5564 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=74
+[rxhex] A7 FD DB
+[rxhex] 20 7C 69 46 61 27
+[rxhex] 72 DD 64 74 61
+[rxhex] D8 73 69 20 20 69 5D
+[rxhex] 73 2F B2 6C 74
+[rxhex] C0 CB 79 73 70
+[rxhex] EF 73 6B 34 63
+[rxhex] 75
+[diag] mode=8PSK250F tone=1500Hz blocks=113852 empty=1588429862 cb=61458/61457 in=5198 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=111
+[rxhex] 67 6C 6F C1 63 AA
+[rxhex] 53 C0 C7
+[rxhex] 41 6F D3 67 D5 72
+[rxhex] 67 6B 6F 65 4D 74
+[rxhex] D6 6F CF A2
+[rxhex] 41 6B 45 65 45 65
+[rxhex] 0D 63 6A
+[diag] mode=8PSK250F tone=1500Hz blocks=113953 empty=1588429862 cb=61585/61584 in=6882 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=145
+[rxhex] BD 6F FE 6C 72 B7
+[rxhex] 71 78 74 74 6E 1D 64
+[rxhex] 68 61 20 66 75 E8
+[rxhex] 62 79 3C 6F 74 44
+[rxhex] 71 75 D7 BC
+[rxhex] 73 6E 06 72 61 69
+[rxhex] 20 D9 C3 66 65
+[rxhex] 08 F4
+[diag] mode=8PSK250F tone=1500Hz blocks=114055 empty=1588429862 cb=61713/61713 in=6271 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=187
+[rxhex] 6F 20 20 74 1D D0 6F
+[rxhex] 73 C4 74
+[rxhex] FA 79 74
+[rxhex] 65 3E 65 61 20 70 E1 20
+[rxhex] 3A 59 E0 E7
+[rxhex] 72 20 6D 79 61 2A
+[rxhex] 65 6F 44
+[diag] mode=8PSK250F tone=1500Hz blocks=114157 empty=1588429862 cb=61841/61841 in=5503 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=221
+[rxhex] A4 74 6F 20 65 73 B9
+[rxhex] EC 22 69 B2
+[rxhex] 2E C5 65 72 65
+[rxhex] 7C 13 65 73 0E
+[rxhex] DB 6D 79 3A 65
+[rxhex] 65 30 6F 73 5F 2C
+[rxhex] 6F 67 25 46 65 20
+[rxhex] 5D 42
+[diag] mode=8PSK250F tone=1500Hz blocks=114259 empty=1588429862 cb=61970/61969 in=6118 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=261
+[rxhex] C3 05 65 E2 20
+[rxhex] 70 6F 23 AC
+[rxhex] 42 62 20 74 2D 63
+[rxhex] BF 6C 62
+[rxhex] 20 36 62 53 6F 55
+[rxhex] 43 49 0A 68
+[rxhex] 6E 64 74 20 18 58
+[diag] mode=8PSK250F tone=1500Hz blocks=114361 empty=1588429862 cb=62097/62097 in=6342 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=295
+[rxhex] C5 46 65 6E
+[rxhex] 52 E8 AD E5
+[rxhex] 75 6E 76 65 08 BB 6E
+[rxhex] 44 BA AE CE
+[rxhex] 50 73 F5 37 65 20
+[rxhex] 66 20 65 20 20 0D 16
+[rxhex] 17 50 6E 20 6B
+[diag] mode=8PSK250F tone=1500Hz blocks=114462 empty=1588429862 cb=62225/62224 in=5775 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=332
+[rxhex] F7 6E 03 6E C3 65
+[rxhex] 69 AA 72 08
+[rxhex] 57 5A 78 61 79 AF
+[rxhex] 6E F0 76 20 EC
+[rxhex] 68 CB 20 20 4E
+[rxhex] 49 65 1A E7 74
+[rxhex] 6B 5E 20 AC 73 20
+[rxhex] 41
+[diag] mode=8PSK250F tone=1500Hz blocks=114564 empty=1588429862 cb=62353/62352 in=5995 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=370
+[rxhex] 65 61 62 20 60 20 6E
+[rxhex] 62 74 63 A4 BE 6F
+[rxhex] 65 FA 44 BE
+[rxhex] 76 65 51 28 7B
+[rxhex] 69 66 6E 4C FE
+[rxhex] F7 38 64 20 20 20 74
+[rxhex] 74 0E 31 6B 6E
+[rxhex] 6C
+[diag] mode=8PSK250F tone=1500Hz blocks=114665 empty=1588429862 cb=62480/62479 in=5168 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=410
+[rxhex] 33 FB A4 62 6E
+[rxhex] 3B 6E 72 61 E2 A7 6E
+[rxhex] 11 E4 4C 63
+[rxhex] 22 69 CC 31 20
+[rxhex] 6E 68 06 4E
+[rxhex] 01 D1 4F 13 74
+[rxhex] 61 20 AE 77 6F
+[diag] mode=8PSK250F tone=1500Hz blocks=114768 empty=1588429862 cb=62607/62607 in=6904 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=445
+[rxhex] 72 FC 71
+[rxhex] 73 27 6C E8 C8 20 65
+[rxhex] 61 65 C6 6E 61 4F
+[rxhex] 32 65 61 6C 65 02
+[rxhex] 20 D2 20 6F AD 6E 20
+[rxhex] B4 6F 74
+[rxhex] 49 64 61 4D 0D 3B
+[rxhex] 61 25
+[diag] mode=8PSK250F tone=1500Hz blocks=114869 empty=1588429862 cb=62735/62734 in=6605 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=485
+[rxhex] 69 71 50 20 6F 2B
+[rxhex] 3F CA 6F 12 6F
+[rxhex] EF 6F 66 20 20
+[rxhex] 3B 74 78 72 6F 61 6F
+[rxhex] 30 4D BE 69 68 20
+[rxhex] 2F 5A BE
+[rxhex] 6F B3 66 B9 69
+[rxhex] A9
+[diag] mode=8PSK250F tone=1500Hz blocks=114971 empty=1588429862 cb=62863/62863 in=5798 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=523
+[rxhex] EB D7 63 6F
+[rxhex] EB 49 77 53
+[rxhex] 6B 39 73 E8 72 20
+[rxhex] A4 20 7A 6B 70 74
+[rxhex] 6D 65 61 6E 20 29 7C
+[rxhex] 20 65 AC 6F 61 6F 1C
+[rxhex] 65 65 6F 62 65 20 71 56 66
+[diag] mode=8PSK250F tone=1500Hz blocks=115073 empty=1588429862 cb=62991/62990 in=6860 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=566
+[rxhex] B3 20 AC F4
+[rxhex] 71 6B 65 D3 31
+[rxhex] 71 20 EC 65 BD 65 74
+[rxhex] 62 62 AB 60
+[rxhex] 75 C1 56 20 20 24 20
+[rxhex] 6F 4F F8 7D 1C 20
+[rxhex] DE 44 F6
+[diag] mode=8PSK250F tone=1500Hz blocks=115174 empty=1588429862 cb=63119/63118 in=5048 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=602
+[rxhex] 24 3A 6F 6E 11
+[rxhex] 23 69 6C 73 68 6D
+[rxhex] 65 EC 30 11
+[rxhex] 74 78 72 F8 4E
+[rxhex] 52 46 74 74 C1
+[rxhex] 6F 20 6F 65 6B 20 65 72 65
+[rxhex] 6F 4B 14 BE 6E
+[rxhex] 67 6F 65
+[diag] mode=8PSK250F tone=1500Hz blocks=115276 empty=1588429862 cb=63246/63246 in=6134 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=644
+[rxhex] D5 01 49 20
+[rxhex] 57 6D E9
+[rxhex] 74 16 C7 F7 20 20
+[rxhex] 61 36 75 73 4E 20 74
+[rxhex] 6C 31 20 54 6C 6C
+[rxhex] 47 BB D4
+[rxhex] B5 20 16 2C
+[diag] mode=8PSK250F tone=1500Hz blocks=115378 empty=1588429862 cb=63374/63374 in=4614 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=677
+[rxhex] D9 20 DE 74 69
+[rxhex] 63 69 B4 65 20 6F A4
+[rxhex] 32 6F 76 74 75 CC 20
+[rxhex] 04 6E 05 69
+[rxhex] C6 70 3B 74 F2
+[rxhex] 5F 6F 6E D8 6E
+[rxhex] 68 20 60 68 6E 0A 63
+[diag] mode=8PSK250F tone=1500Hz blocks=115480 empty=1588429862 cb=63502/63502 in=5247 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=717
+[rxhex] 74 65 A9 69
+[rxhex] 69 20 6B 2A 74 20
+[rxhex] C8 73 6C 20 72 6F 60
+[rxhex] F9 75 65 66 65 B6
+[rxhex] 2A 65 6D 69 A9 09
+[rxhex] 72 63 5C 11
+[rxhex] 0D 5A 20
+[diag] mode=8PSK250F tone=1500Hz blocks=115581 empty=1588429862 cb=63630/63629 in=5537 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=753
+[rxhex] 64 B5 B2 69 75
+[rxhex] 31 53 65 75 47 AB
+[rxhex] 6E 20 F5 0F 5A
+[rxhex] 08 75 65 68 0B 6F
+[rxhex] 51 79 61 4E 72 78 20
+[rxhex] 62 6A 01 6F 68
+[rxhex] F9 37 20 DF
+[rxhex] 74 20 20
+[diag] mode=8PSK250F tone=1500Hz blocks=115684 empty=1588429862 cb=63758/63757 in=5738 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=794
+[rxhex] 23 F4 18
+[rxhex] B7 D2 74 20 20
+[rxhex] A3 45 63 63 53
+[rxhex] 19 70 5F 75 68
+[rxhex] 73 28 6E F7 20
+[rxhex] 74 08 F7
+[rxhex] 74 64 63 68 6E 68 40 20 65
+[diag] mode=8PSK250F tone=1500Hz blocks=115785 empty=1588429862 cb=63886/63885 in=6880 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=829
+[rxhex] 6E 72 65 6F 20
+[rxhex] 4D 74 61 B1 78 63
+[rxhex] CA 64 69 65 20 E4
+[rxhex] 20 29 20 61 6A 35
+[rxhex] 6D 79 65 42 65 20 25 73
+[rxhex] 11 61 20 5B 74
+[rxhex] F3 64 6C E0
+[diag] mode=8PSK250F tone=1500Hz blocks=115887 empty=1588429862 cb=64014/64014 in=5907 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=869
+[rxhex] CD E0 61
+[rxhex] A3 2D 49
+[rxhex] 30 2B 63 62 0F
+[rxhex] 74 6E 37 20 20 77 F3
+[rxhex] 4C 76 63 65 C4 FF
+[rxhex] 75 C7 69
+[diag] mode=8PSK250F tone=1500Hz blocks=115990 empty=1588429862 cb=64142/64142 in=5459 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=896
+[rxhex] ED 54 E0 73 0B
+[rxhex] 61 65 E0 6E EF 72
+[rxhex] AB F2 71 4C
+[rxhex] CD D0 6E 6B
+[rxhex] 73 B0 20 63 44 D6
+[rxhex] 79 61 6A C9 44
+[rxhex] 75 AA 61 64
+[diag] mode=8PSK250F tone=1500Hz blocks=116091 empty=1588429862 cb=64269/64269 in=4749 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=930
+[rxhex] 45 06 D5 69 03 61
+[rxhex] 0D 58 17 6F
+[rxhex] B9 75 70 61 31 0B 65
+[rxhex] DC 74 FA 6C 20
+[rxhex] 4A 20 6B 64 44 65 A1
+[rxhex] 61 65 7A F3 76 4F
+[rxhex] BC 74 B8 4C
+[diag] mode=8PSK250F tone=1500Hz blocks=116195 empty=1588429862 cb=64399/64398 in=6126 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=969
+[rxhex] 74 5A C5 43
+[rxhex] 39 6E E2 73 64 74
+[rxhex] 5A EA 79 68 1B
+[rxhex] 20 74 CC 66 6D
+[rxhex] 68 73 4F F6 65
+[rxhex] 6F 50 20 65 30 69 72
+[rxhex] 68 FE 7B 69
+[diag] mode=8PSK250F tone=1500Hz blocks=116297 empty=1588429862 cb=64527/64526 in=5688 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=1005
+[rxhex] 0A 65 12 6D 3E CF
+[rxhex] B3 69 5B
+[rxhex] 31 74 74 AA 65 55
+[rxhex] 74 65 6B 67 73 73 68
+[rxhex] 20 38 52 74 2F 69
+[rxhex] 6E 57 0A 65 20 D3
+[rxhex] FA 62 74
+[diag] mode=8PSK250F tone=1500Hz blocks=116399 empty=1588429862 cb=64654/64654 in=5262 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=1042
+[rxhex] F5 1B 74 11
+[rxhex] 54 65 32
+[rxhex] C7 F4 09
+[rxhex] EF 65 72 14 69
+[rxhex] 6D 69 73 21 62
+[rxhex] EC 20 20 75 FC 5A
+[rxhex] 46 20 65 65 68 32 74
+[diag] mode=8PSK250F tone=1500Hz blocks=116500 empty=1588429862 cb=64782/64782 in=5954 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=1075
+[rxhex] 29 3C 6E 69 F1
+[rxhex] 6D 20 4E 6F 6F 32 69
+[rxhex] BA 2A 74 DC
+[rxhex] 5C 20 72 74 20 6D 64
+[rxhex] 45 C3 61 A8 20
+[rxhex] 44 23 69 73 20 69 6C
+[rxhex] F0 20 20
+[diag] mode=8PSK250F tone=1500Hz blocks=116602 empty=1588429862 cb=64909/64909 in=5484 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=1113
+[rxhex] F8 4B 63 78 52 65 6F
+[rxhex] 21 65 69 4C E7
+[rxhex] 20 6C EC 69 4E 71
+[rxhex] 6C 69 65 37 65 20 31
+[rxhex] 53 A4 25 62 20 6E
+[rxhex] 2E 6E 20 74 D4
+[rxhex] EE 61 2A FB
+[rxhex] 31 75
+[diag] mode=8PSK250F tone=1500Hz blocks=116703 empty=1588429862 cb=65037/65036 in=6087 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=1155
+[rxhex] 73 DA 65 6C 20 CF
+[rxhex] 07 68 75 52 20
+[rxhex] 1B 24 65 6E 73
+[rxhex] 69 75 61 E9 20 68
+[rxhex] 32 65 EC 31
+[rxhex] 38 6E E6 74 20 72
+[rxhex] 6E 64 69 65 20 76 74 20 74
+[rxhex] 20 73 74
+[diag] mode=8PSK250F tone=1500Hz blocks=116805 empty=1588429862 cb=65165/65164 in=6020 lane=1 q=4 peak=0Hz sq=99/5 open=1 chars=1199
+[rxhex] FF 6E A2
+[rxhex] D5
+[diag] mode=8PSK250F tone=1500Hz blocks=117031 empty=1591897092 cb=65290/65290 in=124 lane=1 q=0 peak=0Hz sq=99/5 open=1 chars=1203
+[diag] mode=8PSK250F tone=1500Hz blocks=117286 empty=1596209259 cb=65418/65417 in=121 lane=1 q=0 peak=0Hz sq=99/5 open=1 chars=1203
+[diag] mode=8PSK250F tone=1500Hz blocks=117540 empty=1600522241 cb=65545/65544 in=129 lane=1 q=0 peak=0Hz sq=99/5 open=1 chars=1203

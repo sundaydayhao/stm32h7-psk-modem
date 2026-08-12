@@ -10,6 +10,15 @@
 #define AUDIO_INPUT_DECIMATION (AUDIO_INPUT_CODEC_RATE_HZ / AUDIO_INPUT_DECODE_RATE_HZ)
 #define AUDIO_INPUT_DECODE_BLOCK_SAMPLES 128
 
+/*
+ * SPI2/I2S is sourced from PLL1Q = 200 MHz. With MCLK enabled the STM32H7 I2S
+ * prescaler uses an integer divider, so a 48 kHz request is realized as
+ * 200 MHz / (256 * 16) = 48828.125 Hz. Keep the 48k request for HAL mode
+ * selection, but tell the PSK decoder the measured post-decimation rate.
+ */
+#define AUDIO_INPUT_ACTUAL_CODEC_RATE_HZ 48828
+#define AUDIO_INPUT_ACTUAL_DECODE_RATE_HZ (AUDIO_INPUT_ACTUAL_CODEC_RATE_HZ / AUDIO_INPUT_DECIMATION)
+
 #if (AUDIO_INPUT_CODEC_RATE_HZ % AUDIO_INPUT_DECODE_RATE_HZ) != 0
 #error "AUDIO_INPUT_CODEC_RATE_HZ must be an integer multiple of AUDIO_INPUT_DECODE_RATE_HZ"
 #endif

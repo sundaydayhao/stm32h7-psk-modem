@@ -1,16 +1,25 @@
 param(
-    [string[]]$Modes = @("QPSK31", "QPSK63"),
+    [string[]]$Modes = @(
+        "BPSK31", "BPSK63", "BPSK63F", "BPSK125", "BPSK250", "BPSK500", "BPSK1000",
+        "12xPSK125", "6xPSK250", "2xPSK500", "4xPSK500", "2xPSK800", "2xPSK1000",
+        "QPSK31", "QPSK63", "QPSK125", "QPSK250", "QPSK500",
+        "8PSK125", "8PSK250", "8PSK500", "8PSK1000",
+        "8PSK125F", "8PSK250F", "8PSK500F", "8PSK1000F", "8PSK1200F"
+    ),
     [string]$Port = "COM10",
     [int]$Baud = 115200,
-    [string]$WavDir = "C:\projects\psk-script\generated-wav",
+    [string]$WavDir = "C:\projects\psk-script\generated-wav-48000",
     [string]$ExpectedText = "C:\projects\psk-script\input.txt",
-    [string]$LogPath = "C:\projects\stm32h7-psk-modem\log.txt",
-    [int]$SelectDelaySeconds = 8,
-    [int]$ModeWaitSeconds = 60,
+    [string]$LogPath = "C:\projects\stm32h7-psk-modem\tools\board_wav_regression.log",
+    [int]$SelectDelaySeconds = 2,
+    [int]$ModeWaitSeconds = 10,
     [int]$MaxSeconds = 140,
     [int]$MatchLength = 80,
     [int]$OutputDevice = -1,
-    [double]$OutputGain = 1.0
+    [double]$OutputGain = 1.0,
+    [bool]$SerialTestMode = $false,
+    [ValidateSet("TEXT", "HEX")]
+    [string]$RxLogFormat = "TEXT"
 )
 
 Set-StrictMode -Version Latest
@@ -82,6 +91,22 @@ function Convert-RxEscapes {
     return $builder.ToString()
 }
 
+function Convert-RxHex {
+    param([string]$HexText)
+
+    $builder = New-Object System.Text.StringBuilder
+    foreach ($token in ($HexText -split "\s+")) {
+        if ($token.Length -eq 0) {
+            continue
+        }
+        if ($token -notmatch "^[0-9A-Fa-f]{2}$") {
+            continue
+        }
+        [void]$builder.Append([char][Convert]::ToInt32($token, 16))
+    }
+    return $builder.ToString()
+}
+
 function Get-ExpectedFragments {
     param(
         [string]$Text,
@@ -92,9 +117,6 @@ function Get-ExpectedFragments {
     $fragments = New-Object System.Collections.Generic.List[string]
     for ($i = 0; $i + $Length -le $clean.Length; $i += [math]::Max(1, [int]($Length / 2))) {
         $fragments.Add($clean.Substring($i, $Length))
-        if ($fragments.Count -ge 80) {
-            break
-        }
     }
     return $fragments
 }
@@ -127,6 +149,15 @@ function Add-SerialLog {
     }
 }
 
+function Send-BoardCommand {
+    param(
+        [System.IO.Ports.SerialPort]$Serial,
+        [string]$Command
+    )
+
+    $Serial.Write("$Command`n")
+}
+
 if (-not (Test-Path $ExpectedText)) {
     throw "Expected text file not found: $ExpectedText"
 }
@@ -142,22 +173,40 @@ New-Item -ItemType Directory -Force -Path ([System.IO.Path]::GetDirectoryName($L
 
 $player = $null
 $playerProcess = $null
+$passCount = 0
+$failCount = 0
+$skipCount = 0
 try {
     $serial.Open()
     $serial.DiscardInBuffer()
+    if ($SerialTestMode) {
+        Send-BoardCommand -Serial $serial -Command "TEST 1"
+        Start-Sleep -Milliseconds 300
+        Add-SerialLog -Path $LogPath -Chunk $serial.ReadExisting()
+    }
+    Send-BoardCommand -Serial $serial -Command "LOG $RxLogFormat"
+    Start-Sleep -Milliseconds 300
+    Add-SerialLog -Path $LogPath -Chunk $serial.ReadExisting()
+    Send-BoardCommand -Serial $serial -Command "STATUS"
     foreach ($mode in $Modes) {
         $wav = Join-Path $WavDir "$mode.wav"
         if (-not (Test-Path $wav)) {
             Write-Host "SKIP $mode missing $wav"
+            $skipCount++
             continue
         }
 
         Write-Host ""
-        Write-Host "Select $mode on the board now. Waiting up to $ModeWaitSeconds seconds for diag confirmation."
         $serial.DiscardInBuffer()
+        Write-Host "Selecting $mode on board"
         $modeDeadline = [DateTime]::UtcNow.AddSeconds($ModeWaitSeconds)
+        $nextModeCommand = [DateTime]::MinValue
         $modeConfirmed = $false
         while ([DateTime]::UtcNow -lt $modeDeadline) {
+            if ([DateTime]::UtcNow -ge $nextModeCommand) {
+                Send-BoardCommand -Serial $serial -Command "MODE $mode"
+                $nextModeCommand = [DateTime]::UtcNow.AddSeconds(1)
+            }
             Start-Sleep -Milliseconds 100
             $chunk = $serial.ReadExisting()
             if ($chunk.Length -eq 0) {
@@ -171,7 +220,8 @@ try {
             }
         }
         if (-not $modeConfirmed) {
-            Write-Host "SKIP $mode board did not confirm mode within $ModeWaitSeconds seconds"
+            Write-Host "FAIL $mode board did not confirm mode within $ModeWaitSeconds seconds"
+            $failCount++
             continue
         }
 
@@ -183,6 +233,7 @@ try {
         $limit = [math]::Min($duration + 5, $MaxSeconds)
         $decoded = New-Object System.Text.StringBuilder
         $raw = New-Object System.Text.StringBuilder
+        $lineBuffer = ""
         $serial.DiscardInBuffer()
         if ($OutputDevice -ge 0) {
             $playerProcess = Start-Process -FilePath "python" -ArgumentList @(
@@ -210,8 +261,19 @@ try {
             [void]$raw.Append($chunk)
             Add-SerialLog -Path $LogPath -Chunk $chunk
 
-            foreach ($line in ($chunk -split "\r?\n")) {
-                if ($line -match "^\[$([regex]::Escape($mode))\]\s+(.*)$") {
+            $lineBuffer += $chunk
+            $parts = [regex]::Split($lineBuffer, "\r?\n")
+            if ($parts.Count -eq 0) {
+                continue
+            }
+            $lineBuffer = $parts[$parts.Count - 1]
+            for ($lineIndex = 0; $lineIndex -lt ($parts.Count - 1); $lineIndex++) {
+                $line = $parts[$lineIndex]
+                if ($RxLogFormat -eq "HEX" -and $line -match "^\[rxhex\]\s+(.*)$") {
+                    [void]$decoded.Append((Convert-RxHex $Matches[1]))
+                } elseif ($RxLogFormat -eq "TEXT" -and $line -notmatch "^\[" -and $line.Length -gt 0) {
+                    [void]$decoded.Append((Convert-RxEscapes $line))
+                } elseif ($line -match "^\[$([regex]::Escape($mode))\]\s+(.*)$") {
                     [void]$decoded.Append((Convert-RxEscapes $Matches[1]))
                 }
             }
@@ -231,10 +293,14 @@ try {
 
         if ($passed) {
             Write-Host "PASS $mode matched board decoded text"
+            $passCount++
         } else {
             Write-Host "FAIL $mode no $MatchLength-char expected fragment matched within $limit seconds"
+            $failCount++
         }
     }
+    Write-Host ""
+    Write-Host "SUMMARY PASS=$passCount FAIL=$failCount SKIP=$skipCount TOTAL=$($passCount + $failCount + $skipCount)"
 } finally {
     if ($player -ne $null) {
         $player.Stop()
@@ -243,6 +309,13 @@ try {
         Stop-Process -Id $playerProcess.Id
     }
     if ($serial.IsOpen) {
+        try {
+            Send-BoardCommand -Serial $serial -Command "TEST 0"
+            Start-Sleep -Milliseconds 100
+            Send-BoardCommand -Serial $serial -Command "LOG TEXT"
+            Start-Sleep -Milliseconds 100
+        } catch {
+        }
         $serial.Close()
     }
 }
