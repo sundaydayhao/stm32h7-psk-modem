@@ -88,6 +88,9 @@ typedef struct {
     int chan_dec1_state[12];
     int chan_dec2_state[12];
     int chan_bit_fir_state[12];
+    float chan_mix_i_acc[12];
+    float chan_mix_q_acc[12];
+    int chan_mix_decim_count;
     psk_rtty_complex_t z1;
     psk_rtty_complex_t z2;
     float carrier_phase_inc[12];
@@ -120,8 +123,6 @@ typedef struct {
     int16_t vit_metrics_a[32768];
     int16_t vit_metrics_b[32768];
     uint16_t vit_sequence[256];
-    float qpsk_path_metric[16];
-    uint32_t qpsk_bit_estimates[16];
     uint16_t fec_state;
     uint32_t fec_mask;
     uint32_t fec_poly1;

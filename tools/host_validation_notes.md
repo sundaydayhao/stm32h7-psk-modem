@@ -21,10 +21,14 @@ Rules for decoder changes:
 Current 48 kHz to 16 kHz observations:
 
 - `committed-wav`: 5 PASS, 0 FAIL, 22 NO-WAV.
-- `generated-wav-48000`: 20 PASS, 7 FAIL.
+- `generated-wav-48000`: 27 PASS, 0 FAIL after the unified channel frontend.
 
-Known failing observations in `generated-wav-48000`:
+Earlier failing observations in `generated-wav-48000` before the unified channel frontend:
 
 - Multi-carrier BPSK: `12xPSK125`, `6xPSK250`, `4xPSK500`, `2xPSK1000`.
 - Non-FEC high-rate 8PSK: `8PSK500`, `8PSK1000`.
 - Highest-rate FEC 8PSK: `8PSK1200F`.
+
+The remaining low-speed FEC parity issue was resolved by aligning the default
+warmup parity to the unified frontend group delay. A more general future
+hardening step is to add fldigi-style dual-phase FEC decoding for R=1/2 streams.
