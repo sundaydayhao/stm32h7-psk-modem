@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 *)",
+      "Bash(python *)",
+      "Bash(powershell -Command \"Get-Content 'C:\\\\projects\\\\stm32h7-psk-modem\\\\README.md' | Select-String -Pattern 'host_psk_rtty_wav' -Context 3,3\")",
+      "Bash(git -C /c/projects/stm32h7-psk-modem log --oneline -10)",
+      "Bash(git -C /c/projects/stm32h7-psk-modem status)",
+      "Bash(where bash *)"
+    ]
+  }
+}
