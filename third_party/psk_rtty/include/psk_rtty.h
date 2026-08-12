@@ -69,6 +69,7 @@ typedef struct {
     float dev_ave;
     float bit_phase_inc;
     float bit_phase_pos;
+    int second_decim;
     float prev_symbol_phase;
     float symbol_clock;
     float symbol_period_samples;
@@ -79,11 +80,14 @@ typedef struct {
     float i1;
     float q0;
     float q1;
-    psk_rtty_complex_t dec1_queue[35];
-    psk_rtty_complex_t dec2_queue[35];
-    psk_rtty_complex_t bit_queue[65];
-    psk_rtty_complex_t freq_signal;
-    psk_rtty_complex_t bit_signal;
+    psk_rtty_complex_t chan_dec1_queue[12][35];
+    psk_rtty_complex_t chan_dec2_queue[12][35];
+    psk_rtty_complex_t chan_bit_queue[12][65];
+    psk_rtty_complex_t chan_freq_signal[12];
+    psk_rtty_complex_t chan_bit_signal[12];
+    int chan_dec1_state[12];
+    int chan_dec2_state[12];
+    int chan_bit_fir_state[12];
     psk_rtty_complex_t z1;
     psk_rtty_complex_t z2;
     float carrier_phase_inc[12];
@@ -128,9 +132,6 @@ typedef struct {
     int samples_in_symbol;
     int sample_count;
     int afc_timer;
-    int dec1_state;
-    int dec2_state;
-    int bit_fir_state;
     int pk_pos;
     int new_pk_pos;
     int raw_pk_pos;

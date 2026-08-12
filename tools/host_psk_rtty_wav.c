@@ -1,10 +1,17 @@
 #include "psk_rtty.h"
+#include "audio_decim.h"
 
 #include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* Mirror the firmware audio path: 48 kHz codec/audio-file input is filtered,
+ * DC-blocked, and decimated by 3 before the PSK decoder sees 16 kHz mono. */
+#define HOST_CODEC_RATE_HZ 48000
+#define HOST_DECODE_RATE_HZ 16000
+#define HOST_DECIMATION (HOST_CODEC_RATE_HZ / HOST_DECODE_RATE_HZ)
 
 typedef struct {
     char *data;
@@ -284,10 +291,33 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    int16_t *decode_samples = samples;
+    size_t decode_count = count;
+    int decode_rate = rate;
+    int16_t *decimated = NULL;
+    if (rate == HOST_CODEC_RATE_HZ) {
+        decimated = (int16_t *)malloc((count / HOST_DECIMATION + 1U) * sizeof(int16_t));
+        if (!decimated) {
+            fprintf(stderr, "out of memory decimating %s\n", argv[2]);
+            free(samples);
+            return 1;
+        }
+        audio_decim_state_t decim_state;
+        audio_decim_init(&decim_state);
+        decode_count = audio_decim_process(&decim_state, samples, count, decimated, HOST_DECIMATION);
+        decode_samples = decimated;
+        decode_rate = HOST_DECODE_RATE_HZ;
+    } else {
+        fprintf(stderr,
+                "warning: %s is %d Hz, not the codec rate %d Hz - decoding at native rate "
+                "instead of replaying through the real audio_input.c decimation path\n",
+                argv[2], rate, HOST_CODEC_RATE_HZ);
+    }
+
     text_buf_t decoded = {0};
     psk_rtty_config_t cfg = {
         .mode = parse_mode(argv[1]),
-        .sample_rate_hz = rate,
+        .sample_rate_hz = decode_rate,
         .rx_tone_hz = 1500,
         .char_cb = append_char,
         .userdata = &decoded,
@@ -301,12 +331,12 @@ int main(int argc, char **argv)
     }
 
     const size_t block = 512;
-    for (size_t pos = 0; pos < count; pos += block) {
-        size_t n = count - pos;
+    for (size_t pos = 0; pos < decode_count; pos += block) {
+        size_t n = decode_count - pos;
         if (n > block) {
             n = block;
         }
-        psk_rtty_rx_feed(&rx, samples + pos, n);
+        psk_rtty_rx_feed(&rx, decode_samples + pos, n);
     }
 
     size_t match_len = argc >= 5 ? (size_t)strtoul(argv[4], NULL, 10) : 60U;
@@ -320,6 +350,7 @@ int main(int argc, char **argv)
     }
 
     free(decoded.data);
+    free(decimated);
     free(samples);
     return ok ? 0 : 1;
 }

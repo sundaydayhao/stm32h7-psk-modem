@@ -1,4 +1,5 @@
 #include "audio_input.h"
+#include "audio_decim.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -60,6 +61,7 @@ static volatile uint32_t s_tail;
 static volatile uint8_t s_started;
 
 static audio_input_debug_t s_debug;
+static audio_decim_state_t s_decim_state[2];
 
 static uint16_t s_wm_regs[] = {
     0x000, 0x000, 0x000, 0x000, 0x050, 0x000, 0x140, 0x000,
@@ -95,6 +97,8 @@ HAL_StatusTypeDef audio_input_start(void)
 
     memset((void *)&s_debug, 0, sizeof(s_debug));
     memset(s_dma, 0, sizeof(s_dma));
+    audio_decim_init(&s_decim_state[0]);
+    audio_decim_init(&s_decim_state[1]);
 
     if (configure_audio_clock() != HAL_OK) {
         return HAL_ERROR;
@@ -511,42 +515,47 @@ static void wm8978_gpio1(uint8_t value)
 
 static void process_dma_half(uint32_t offset, uint8_t is_full)
 {
+    static int16_t lane_raw[2][AUDIO_INPUT_DECODE_BLOCK_SAMPLES * AUDIO_INPUT_DECIMATION];
     int32_t sum_abs[2] = {0, 0};
     int16_t min_raw[2] = {INT16_MAX, INT16_MAX};
     int16_t max_raw[2] = {INT16_MIN, INT16_MIN};
     int16_t lane_block[2][AUDIO_INPUT_DECODE_BLOCK_SAMPLES];
     int16_t block[AUDIO_INPUT_DECODE_BLOCK_SAMPLES];
+    const size_t raw_count = AUDIO_INPUT_DECODE_BLOCK_SAMPLES * AUDIO_INPUT_DECIMATION;
 
     invalidate_dma_cache(&s_dma[offset], AUDIO_DMA_HALF_COUNT * sizeof(s_dma[0]));
 
-    for (size_t i = 0; i < AUDIO_INPUT_DECODE_BLOCK_SAMPLES; ++i) {
-        const size_t base = offset + (i * AUDIO_INPUT_DECIMATION * 2U);
-        int32_t acc[2] = {0, 0};
+    for (size_t k = 0; k < raw_count; ++k) {
+        const int16_t l = s_dma[offset + k * 2U];
+        const int16_t r = s_dma[offset + k * 2U + 1U];
 
-        for (size_t j = 0; j < AUDIO_INPUT_DECIMATION; ++j) {
-            const int16_t l = s_dma[base + j * 2U];
-            const int16_t r = s_dma[base + j * 2U + 1U];
-
-            acc[0] += l;
-            acc[1] += r;
-            sum_abs[0] += abs((int)l);
-            sum_abs[1] += abs((int)r);
-            if (l < min_raw[0]) {
-                min_raw[0] = l;
-            }
-            if (l > max_raw[0]) {
-                max_raw[0] = l;
-            }
-            if (r < min_raw[1]) {
-                min_raw[1] = r;
-            }
-            if (r > max_raw[1]) {
-                max_raw[1] = r;
-            }
+        lane_raw[0][k] = l;
+        lane_raw[1][k] = r;
+        sum_abs[0] += abs((int)l);
+        sum_abs[1] += abs((int)r);
+        if (l < min_raw[0]) {
+            min_raw[0] = l;
         }
+        if (l > max_raw[0]) {
+            max_raw[0] = l;
+        }
+        if (r < min_raw[1]) {
+            min_raw[1] = r;
+        }
+        if (r > max_raw[1]) {
+            max_raw[1] = r;
+        }
+    }
 
-        lane_block[0][i] = (int16_t)(acc[0] / (int32_t)AUDIO_INPUT_DECIMATION);
-        lane_block[1][i] = (int16_t)(acc[1] / (int32_t)AUDIO_INPUT_DECIMATION);
+    const size_t lane0_count = audio_decim_process(&s_decim_state[0], lane_raw[0], raw_count,
+                                                   lane_block[0], AUDIO_INPUT_DECIMATION);
+    const size_t lane1_count = audio_decim_process(&s_decim_state[1], lane_raw[1], raw_count,
+                                                   lane_block[1], AUDIO_INPUT_DECIMATION);
+    if (lane0_count != AUDIO_INPUT_DECODE_BLOCK_SAMPLES ||
+        lane1_count != AUDIO_INPUT_DECODE_BLOCK_SAMPLES) {
+        ++s_error_callbacks;
+        s_debug.sai_error = 0x80000003UL;
+        return;
     }
 
     const uint8_t selected_lane = (sum_abs[1] > sum_abs[0]) ? 1U : 0U;

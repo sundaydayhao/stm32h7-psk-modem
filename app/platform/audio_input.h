@@ -5,10 +5,18 @@
 
 #include "stm32h7xx_hal.h"
 
-#define AUDIO_INPUT_CODEC_RATE_HZ 49152
-#define AUDIO_INPUT_DECODE_RATE_HZ 8192
-#define AUDIO_INPUT_DECIMATION 6
+#define AUDIO_INPUT_CODEC_RATE_HZ 48000
+#define AUDIO_INPUT_DECODE_RATE_HZ 16000
+#define AUDIO_INPUT_DECIMATION (AUDIO_INPUT_CODEC_RATE_HZ / AUDIO_INPUT_DECODE_RATE_HZ)
 #define AUDIO_INPUT_DECODE_BLOCK_SAMPLES 128
+
+#if (AUDIO_INPUT_CODEC_RATE_HZ % AUDIO_INPUT_DECODE_RATE_HZ) != 0
+#error "AUDIO_INPUT_CODEC_RATE_HZ must be an integer multiple of AUDIO_INPUT_DECODE_RATE_HZ"
+#endif
+
+#if AUDIO_INPUT_DECIMATION != 3
+#error "The shared audio frontend is currently designed and validated for decimation by 3"
+#endif
 
 typedef struct {
     uint32_t half_callbacks;

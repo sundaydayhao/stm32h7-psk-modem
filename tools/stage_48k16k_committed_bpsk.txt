@@ -1,0 +1,37 @@
+EXE=C:\projects\stm32h7-psk-modem\tools\..\build\host-tools\host_psk_rtty_wav.exe
+WAV_DIR=C:\projects\psk-script\committed-wav
+EXPECTED=C:\projects\psk-script\input.txt
+
+
+Mode      Result Detail
+----      ------ ------
+BPSK31    PASS   BPSK31 decoded=2199 symbols=13639 bits=13607 chars=2199 sq=3/5 match=yes
+BPSK63    PASS   BPSK63 decoded=2205 symbols=13774 bits=13712 chars=2205 sq=21/5 match=yes
+BPSK63F   NO-WAV C:\projects\psk-script\committed-wav\BPSK63F.wav
+BPSK125   PASS   BPSK125 decoded=2219 symbols=14043 bits=13918 chars=2219 sq=71/5 match=yes
+BPSK250   PASS   BPSK250 decoded=4398 symbols=28573 bits=28322 chars=4398 sq=99/5 match=yes
+BPSK500   NO-WAV C:\projects\psk-script\committed-wav\BPSK500.wav
+BPSK1000  PASS   BPSK1000 decoded=17593 symbols=113413 bits=112412 chars=17593 sq=0/5 match=yes
+12xPSK125 NO-WAV C:\projects\psk-script\committed-wav\12xPSK125.wav
+6xPSK250  NO-WAV C:\projects\psk-script\committed-wav\6xPSK250.wav
+2xPSK500  NO-WAV C:\projects\psk-script\committed-wav\2xPSK500.wav
+4xPSK500  NO-WAV C:\projects\psk-script\committed-wav\4xPSK500.wav
+2xPSK800  NO-WAV C:\projects\psk-script\committed-wav\2xPSK800.wav
+2xPSK1000 NO-WAV C:\projects\psk-script\committed-wav\2xPSK1000.wav
+QPSK31    NO-WAV C:\projects\psk-script\committed-wav\QPSK31.wav
+QPSK63    NO-WAV C:\projects\psk-script\committed-wav\QPSK63.wav
+QPSK125   NO-WAV C:\projects\psk-script\committed-wav\QPSK125.wav
+QPSK250   NO-WAV C:\projects\psk-script\committed-wav\QPSK250.wav
+QPSK500   NO-WAV C:\projects\psk-script\committed-wav\QPSK500.wav
+8PSK125   NO-WAV C:\projects\psk-script\committed-wav\8PSK125.wav
+8PSK250   NO-WAV C:\projects\psk-script\committed-wav\8PSK250.wav
+8PSK500   NO-WAV C:\projects\psk-script\committed-wav\8PSK500.wav
+8PSK1000  NO-WAV C:\projects\psk-script\committed-wav\8PSK1000.wav
+8PSK125F  NO-WAV C:\projects\psk-script\committed-wav\8PSK125F.wav
+8PSK250F  NO-WAV C:\projects\psk-script\committed-wav\8PSK250F.wav
+8PSK500F  NO-WAV C:\projects\psk-script\committed-wav\8PSK500F.wav
+8PSK1000F NO-WAV C:\projects\psk-script\committed-wav\8PSK1000F.wav
+8PSK1200F NO-WAV C:\projects\psk-script\committed-wav\8PSK1200F.wav
+
+
+PASS=5 FAIL=0 NO-WAV=22 TOTAL=27

@@ -78,6 +78,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     app/board/fire_lcd.c
     app/modem/psk_modes.c
     app/modem/psk_modem.c
+    app/platform/audio_decim.c
     app/platform/audio_input.c
     app/platform/touch_gt911.c
     app/ui/display.c
