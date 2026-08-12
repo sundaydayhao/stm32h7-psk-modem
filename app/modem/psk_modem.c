@@ -154,6 +154,9 @@ void psk_modem_debug_snapshot(const psk_modem_t *m, psk_modem_debug_t *debug)
     debug->warmup_symbols = m->rx.warmup_symbols;
     debug->tone_hz = backend_effective_tone_hz(m);
     debug->selected_tone_hz = m->backend_active ? m->rx.config.rx_tone_hz : m->config.rx_tone_hz;
+    debug->fec_metric[0] = m->rx.debug_fec_metric[0];
+    debug->fec_metric[1] = m->rx.debug_fec_metric[1];
+    debug->fec_selected = m->rx.debug_fec_selected;
 }
 
 size_t psk_modem_process(psk_modem_t *m, const int16_t *samples, size_t count,

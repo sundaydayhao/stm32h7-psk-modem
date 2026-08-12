@@ -67,6 +67,8 @@ typedef struct {
     float nlp_k;
     float agc_ave;
     float dev_ave;
+    float bpsk_average_amp;
+    float psk8_last_phase_quality;
     float bit_phase_inc;
     float bit_phase_pos;
     int second_decim;
@@ -118,6 +120,12 @@ typedef struct {
     uint8_t fec_pending_bits[2];
     uint8_t fec_pair_buf[2];
     uint8_t fec_pair_len;
+    uint32_t fec_stream_bit_count;
+    int fec_phase_metric[2];
+    uint8_t fec_phase_search;
+    uint8_t fec_phase_candidate;
+    uint8_t fec_phase_align_pending;
+    uint8_t fec_output_enabled;
     uint8_t fec_k;
     uint8_t vit_traceback;
     uint8_t vit_chunksize;
@@ -160,6 +168,8 @@ typedef struct {
     uint32_t debug_delims;
     uint32_t debug_chars;
     uint32_t debug_unknown;
+    int debug_fec_metric[2];
+    uint8_t debug_fec_selected;
 } psk_rtty_rx_t;
 
 void psk_rtty_rx_init(psk_rtty_rx_t *rx, const psk_rtty_config_t *config);

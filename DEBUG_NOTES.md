@@ -1,6 +1,6 @@
 # STM32H743 PSK Modem Debug Notes
 
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 
 ## Current Board State
 
@@ -235,7 +235,157 @@ Do not treat `C:\projects\psk-script\generate_psk_wavs.py` as protocol truth:
 - This caution is documented in:
   - `tools/host_validation_notes.md`
 
-## Board Validation Results
+## 2026-08-13 Final fldigi Comparison And Board Validation
+
+The remaining low-speed FEC failures were resolved and the complete normal-UI board
+regression now passes all 27 generated WAV modes.
+
+Final validation summary:
+
+- Host WAV regression: `PASS=27 FAIL=0 NO-WAV=0 TOTAL=27`.
+- Board WAV regression with normal touch/display work enabled:
+  - `PASS=27 FAIL=0 SKIP=0 TOTAL=27`.
+  - `MatchLength=80`, `OutputDevice=7`, `OutputGain=0.6`, `LOG HEX`.
+- Target-mode board runs at gains `0.4`, `0.6`, and `0.8`:
+  - `BPSK63F`: PASS, final runs `BER=0`, `CER=0`.
+  - `8PSK125F`: PASS, final runs `BER=0`, `CER=0`.
+  - `8PSK250F`: PASS, final runs `BER=0`, `CER=0`.
+- The full-run target-mode FEC metrics ended near:
+  - `BPSK63F`: `fm=957/1313`, selected phase branch 1.
+  - `8PSK125F`: `fm=1417/1180`, selected phase branch 0.
+  - `8PSK250F`: acquired phase metrics near `1718/1309`, selected phase 0.
+- Audio queue depth remained bounded. The largest observed queue in the final full run
+  was 7 blocks. `ov=1` was the pre-existing startup count and did not grow.
+
+Two modes had non-zero aggregate error statistics while still containing an 80-character
+correct fragment:
+
+- `QPSK31`: `BER=0.4167%`, `CER=0.8333%`.
+- `8PSK1200F`: `BER=10.2201%`, `CER=23.2704%`.
+
+These statistics include acquisition/preamble text and are not equivalent to error rate
+inside the matched 80-character fragment. Both modes passed the board criterion.
+
+### Direct fldigi Comparison
+
+The protocol reference used for this work is `C:\projects\fldigi`:
+
+- `src/psk/psk.cxx` defines the mode parameters, convolutional codes, soft decisions,
+  deinterleaving, bit-phase branches, and character-level branch voting.
+- `src/filters/viterbi.cxx` defines the Viterbi metric convention, traceback, and chunk
+  extraction.
+- `src/mfsk/interleave.cxx` defines the reverse interleaver behavior.
+
+Important matches and corrections:
+
+1. Convolutional codes now match fldigi.
+   - `BPSK63F`: K=7, polynomials `0x6d` and `0x4f`.
+   - `8PSK125F` and `8PSK250F`: K=16, polynomials `0152711` and `0126723`.
+
+2. The one-bit FEC pair ambiguity is handled.
+   - fldigi runs two Viterbi streams offset by one encoded bit for PSKR and for
+     unpunctured odd-bit 8PSK modes.
+   - The STM32 implementation now runs both branches for `BPSK63F` and `8PSK125F`.
+   - The earlier `BPSK63F` implementation had only one branch and could permanently
+     select the wrong encoded-bit pairing.
+
+3. BPSK soft decisions follow fldigi.
+   - Differential phase supplies the bit likelihood.
+   - Symbol power is compared with a running average and reduces confidence for
+     abnormal amplitudes.
+   - The result is an 8-bit soft symbol rather than only `0` or `255`.
+
+4. 8PSK soft decisions follow fldigi's Gray table and phase-quality policy.
+   - The same predefined Gray-mapped soft-bit table is used.
+   - Current and previous differential phase quality are averaged.
+   - Poor phase positions soften the three bits toward 128; very poor positions are
+     treated as erasures.
+
+5. Branch voting now uses the actual traceback-path metric.
+   - fldigi compares the metric accumulated across the emitted traceback chunk.
+   - The earlier STM32 code compared cumulative best-state totals, which favored the
+     branch that had accumulated more history rather than the branch decoding the
+     current data correctly.
+   - The STM32 traceback now recomputes the metric on the emitted path and filters it
+     with the same 20-sample style exponential average.
+
+6. Startup output is confidence-gated.
+   - fldigi continuously votes at character boundaries.
+   - With the shorter embedded traceback, both STM32 branches can initially have nearly
+     equal metrics and the wrong branch used to emit several garbage characters.
+   - Both metrics must now be ready and the winning branch must lead by more than 64
+     metric points. This changed final `BPSK63F` board output from early garbage plus a
+     correct tail to `BER=0`, `CER=0`, `offset=0` in repeated tests.
+
+### STM32H7-Specific Compromises
+
+The desktop implementation cannot be copied literally because two full K=16 decoders
+are expensive in both memory and CPU time.
+
+- fldigi uses a default traceback of `K * 12`:
+  - K=7: 84 states of history.
+  - K=16: 192 states of history.
+- The STM32 implementation caps traceback at 64.
+  - A full dual K=16, 192-step history is not practical in the available internal RAM.
+  - The confidence gate and soft decisions compensate for the shorter history during
+    acquisition.
+- fldigi sets a 4-bit output chunk for these low-speed FEC modes.
+  - STM32 uses an 8-bit chunk to reduce full-state traceback searches, especially for
+    K=16.
+- `8PSK125F` runs two K=16 branches concurrently and remains real-time at 125 baud.
+- `8PSK250F` does not run two K=16 branches concurrently.
+  - A trial dual decoder caused the audio queue to grow and overflow.
+  - The final implementation evaluates bit phase 0 for 896 pairs, resets and evaluates
+    phase 1 for 896 pairs using the same K=16 workspace, locks the higher metric phase,
+    and suppresses output during acquisition.
+
+Viterbi memory/CPU optimizations:
+
+- Large decoder arrays are file-static rather than embedded in every receiver object.
+- One metric buffer and the compact output table are placed in DTCM.
+- The second decision history is placed in D2 SRAM.
+- Two adjacent states are processed together so predecessor metrics are loaded once.
+- Two encoder outputs are packed into one byte.
+- Decision rows are written directly without clearing 4 KB on every Viterbi step.
+
+Final firmware memory use:
+
+- DTCM: 88 KB / 128 KB, 68.75%.
+- D1 SRAM: 496864 B / 512 KB, 94.77%.
+- D2 SRAM: 256 KB / 288 KB, 88.89%.
+- D3 SRAM: 0 B.
+- ROM: about 84 KB.
+
+D1 remains close to capacity. Any new large buffer must be placed deliberately rather
+than added to the default `.bss`.
+
+### Regression-Control Fix
+
+One full run initially reported false failures for `QPSK31` and `8PSK125`. Decoder
+diagnostics were healthy, but UART command loss had left the board in `LOG TEXT` while
+the script parsed output as HEX.
+
+The final control behavior is:
+
+- Firmware accepts only complete `LOG HEX` or `LOG TEXT` arguments.
+- A damaged `LOG` command reports an error and leaves the current format unchanged.
+- The regression script sends one command at a time, retries at one-second intervals,
+  and separately confirms:
+  - `[mode] selected <mode>`
+  - `[log] rx=HEX`
+- HEX tests parse only `[rxhex]` records and never fall back to plain text.
+
+The polling UART can still lose command characters while the board is transmitting a
+large log stream. Confirmed retry makes this harmless for regression, but an interrupt
+or DMA RX ring is the cleaner future control-channel design.
+
+Final full board command:
+
+```powershell
+.\tools\board_wav_regression.ps1 -Port COM11 -MatchLength 80 -ModeWaitSeconds 15 -MaxSeconds 180 -OutputDevice 7 -OutputGain 0.6 -RxLogFormat HEX -SerialTestMode $false
+```
+
+## Historical 2026-08-12 Board Validation Results
 
 Board test command used for the full 27-mode pass/fail run:
 
@@ -519,44 +669,47 @@ Possible improvement:
 Expected modified files after this debug session:
 
 - `Core/Src/main.c`
-  - serial mode control,
-  - serial test mode,
-  - TEXT/HEX RX log output,
-  - input gate,
-  - actual decoder sample-rate use.
-- `app/platform/audio_input.h`
-  - actual board audio rate constants.
+  - FEC metric diagnostics,
+  - strict `LOG HEX` / `LOG TEXT` argument validation.
+- `app/modem/psk_modem.c/.h`
+  - exposes FEC branch metrics and selected phase in board diagnostics.
+- `third_party/psk_rtty/psk_rtty.c`
+  - fldigi-style BPSK and 8PSK soft decisions,
+  - dual bit-phase decoding for `BPSK63F` and `8PSK125F`,
+  - sequential phase acquisition for `8PSK250F`,
+  - corrected traceback-path metrics and optimized K=16 butterflies,
+  - FEC warmup and branch-confidence output gating.
+- `third_party/psk_rtty/include/psk_rtty.h`
+  - FEC acquisition, confidence, and diagnostic state.
 - `tools/board_wav_regression.ps1`
-  - automatic mode switching,
-  - HEX/TEXT RX parsing,
-  - optional serial test mode,
-  - full 27-mode default list.
+  - confirmed, retried mode and log-format control,
+  - strict HEX parsing.
+- `tools/host_psk_rtty_wav.c`
+  - FEC metric diagnostics in host output.
+- `DEBUG_NOTES.md`
+  - final fldigi comparison and board results.
 
 Generated local log:
 
 - `tools/board_wav_regression.log`
 - Treat as local artifact unless intentionally preserving a test run.
 
-## Recommended Next Work
+## Follow-up Improvements
 
 1. Keep the normal UI default:
    - touch enabled,
    - screen RX TEXT enabled,
    - board regression uses `LOG HEX`.
 
-2. For the remaining 3 board failures:
-   - add per-mode acquisition diagnostics:
-     - symbol timing phase,
-     - carrier phase error,
-     - soft-decision confidence,
-     - Viterbi metric spread,
-     - FEC lock/warmup counters.
+2. Replace polling UART RX with an interrupt or DMA ring buffer.
+   - Confirmed command retry makes regression reliable.
+   - The board still reports damaged command attempts while transmitting large logs.
 
-3. Compare board-captured decoded soft decisions against host:
-   - start with `BPSK63F`, because it is slow and single-carrier.
-   - then compare `8PSK125F` and `8PSK250F`.
+3. Add board sample capture/replay.
+   - Capture post-decimation samples and decode them with the host tool.
+   - This remains the best way to separate analog/frontend errors from decoder errors.
 
-4. Revisit audio clocking:
+4. Revisit exact audio clocking if wider hardware interoperability is required:
    - ideal fix is a precise audio PLL for 48 kHz-family clocks.
    - do not use PLL2 unless SDRAM/LCD clock ownership is redesigned.
    - consider using PLL3 only if LCD pixel clock can be preserved or independently sourced.
@@ -565,20 +718,15 @@ Generated local log:
    - host must remain 27/27 before board-specific changes are accepted.
    - board tests should use `-RxLogFormat HEX`.
 
-6. Add capture/replay tooling:
-   - capture post-decimation board samples for failing modes,
-   - decode the captured samples with host tools,
-   - compare against direct WAV host decode.
-   - This will show whether failure is before or inside the decoder.
+6. Protect D1 memory headroom.
+   - D1 is already at 94.77%.
+   - Put future large buffers in a deliberate SRAM section and verify DMA/cache rules.
 
-7. Add FEC-specific debug counters:
-   - Viterbi metric spread,
-   - traceback confidence,
-   - puncture count,
-   - deinterleaver fill/warmup state,
-   - varicode invalid/unknown count.
+7. Add a payload-window BER report.
+   - Current aggregate BER includes acquisition and preamble output.
+   - Report BER/CER over the matched payload window separately for clearer robustness data.
 
-## 2026-08-12 Late Session Handoff: K16 FEC RAM Split And Board Status
+## Historical 2026-08-12 Late Session Handoff: K16 FEC RAM Split And Board Status
 
 User request:
 

@@ -256,6 +256,41 @@ function Send-BoardCommandRepeated {
     }
 }
 
+function Wait-BoardResponse {
+    param(
+        [System.IO.Ports.SerialPort]$Serial,
+        [string]$Command,
+        [string]$Pattern,
+        [string]$LogPath,
+        [int]$TimeoutSeconds,
+        [int]$RetryMilliseconds = 1000
+    )
+
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    $nextCommand = [DateTime]::MinValue
+    $response = ""
+    while ([DateTime]::UtcNow -lt $deadline) {
+        if ([DateTime]::UtcNow -ge $nextCommand) {
+            Send-BoardCommand -Serial $Serial -Command $Command
+            $nextCommand = [DateTime]::UtcNow.AddMilliseconds($RetryMilliseconds)
+        }
+        Start-Sleep -Milliseconds 100
+        $chunk = $Serial.ReadExisting()
+        if ($chunk.Length -eq 0) {
+            continue
+        }
+        Add-SerialLog -Path $LogPath -Chunk $chunk
+        $response += $chunk
+        if ($response -match $Pattern) {
+            return $true
+        }
+        if ($response.Length -gt 4096) {
+            $response = $response.Substring($response.Length - 4096)
+        }
+    }
+    return $false
+}
+
 if (-not (Test-Path $ExpectedText)) {
     throw "Expected text file not found: $ExpectedText"
 }
@@ -282,10 +317,6 @@ try {
         Start-Sleep -Milliseconds 300
         Add-SerialLog -Path $LogPath -Chunk $serial.ReadExisting()
     }
-    Send-BoardCommandRepeated -Serial $serial -Command "LOG $RxLogFormat"
-    Start-Sleep -Milliseconds 300
-    Add-SerialLog -Path $LogPath -Chunk $serial.ReadExisting()
-    Send-BoardCommand -Serial $serial -Command "STATUS"
     foreach ($mode in $Modes) {
         $wav = Join-Path $WavDir "$mode.wav"
         if (-not (Test-Path $wav)) {
@@ -294,32 +325,24 @@ try {
             continue
         }
 
-            Write-Host ""
-            $serial.DiscardInBuffer()
-            Write-Host "Selecting $mode on board"
-            Send-BoardCommandRepeated -Serial $serial -Command "LOG $RxLogFormat"
-            $modeDeadline = [DateTime]::UtcNow.AddSeconds($ModeWaitSeconds)
-            $nextModeCommand = [DateTime]::MinValue
-            $modeConfirmed = $false
-        while ([DateTime]::UtcNow -lt $modeDeadline) {
-            if ([DateTime]::UtcNow -ge $nextModeCommand) {
-                Send-BoardCommandRepeated -Serial $serial -Command "MODE $mode" -Count 2 -DelayMs 80
-                $nextModeCommand = [DateTime]::UtcNow.AddSeconds(1)
-            }
-            Start-Sleep -Milliseconds 100
-            $chunk = $serial.ReadExisting()
-            if ($chunk.Length -eq 0) {
-                continue
-            }
-            Add-SerialLog -Path $LogPath -Chunk $chunk
-            if ($chunk -match "\[diag\]\s+mode=$([regex]::Escape($mode))\b" -or
-                $chunk -match "\[mode\]\s+selected\s+$([regex]::Escape($mode))\b") {
-                $modeConfirmed = $true
-                break
-            }
-        }
+        Write-Host ""
+        Start-Sleep -Milliseconds 300
+        $serial.DiscardInBuffer()
+        Write-Host "Selecting $mode on board"
+        $modePattern = "\[mode\]\s+selected\s+$([regex]::Escape($mode))\b"
+        $modeConfirmed = Wait-BoardResponse -Serial $serial -Command "MODE $mode" `
+            -Pattern $modePattern -LogPath $LogPath -TimeoutSeconds $ModeWaitSeconds
         if (-not $modeConfirmed) {
             Write-Host "FAIL $mode board did not confirm mode within $ModeWaitSeconds seconds"
+            $failCount++
+            continue
+        }
+
+        $logPattern = "\[log\]\s+rx=$([regex]::Escape($RxLogFormat))\b"
+        $logConfirmed = Wait-BoardResponse -Serial $serial -Command "LOG $RxLogFormat" `
+            -Pattern $logPattern -LogPath $LogPath -TimeoutSeconds $ModeWaitSeconds
+        if (-not $logConfirmed) {
+            Write-Host "FAIL $mode board did not confirm LOG $RxLogFormat within $ModeWaitSeconds seconds"
             $failCount++
             continue
         }
@@ -368,12 +391,16 @@ try {
             $lineBuffer = $parts[$parts.Count - 1]
             for ($lineIndex = 0; $lineIndex -lt ($parts.Count - 1); $lineIndex++) {
                 $line = $parts[$lineIndex]
-                if ($RxLogFormat -eq "HEX" -and $line -match "^\[rxhex\]\s+(.*)$") {
-                    [void]$decoded.Append((Convert-RxHex $Matches[1]))
-                } elseif ($line -notmatch "^\[" -and $line.Length -gt 0) {
-                    [void]$decoded.Append((Convert-RxEscapes $line))
-                } elseif ($line -match "^\[$([regex]::Escape($mode))\]\s+(.*)$") {
-                    [void]$decoded.Append((Convert-RxEscapes $Matches[1]))
+                if ($RxLogFormat -eq "HEX") {
+                    if ($line -match "^\[rxhex\]\s+(.*)$") {
+                        [void]$decoded.Append((Convert-RxHex $Matches[1]))
+                    }
+                } else {
+                    if ($line -notmatch "^\[" -and $line.Length -gt 0) {
+                        [void]$decoded.Append((Convert-RxEscapes $line))
+                    } elseif ($line -match "^\[$([regex]::Escape($mode))\]\s+(.*)$") {
+                        [void]$decoded.Append((Convert-RxEscapes $Matches[1]))
+                    }
                 }
             }
             if (Test-DecodedText -Decoded $decoded.ToString() -Fragments $fragments) {

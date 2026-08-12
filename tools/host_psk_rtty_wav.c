@@ -341,9 +341,11 @@ int main(int argc, char **argv)
 
     size_t match_len = argc >= 5 ? (size_t)strtoul(argv[4], NULL, 10) : 60U;
     int ok = has_expected_fragment(decoded.data ? decoded.data : "", argv[3], match_len);
-    printf("%s decoded=%zu symbols=%lu bits=%lu chars=%lu sq=%d/%d match=%s\n",
+    printf("%s decoded=%zu symbols=%lu bits=%lu chars=%lu sq=%d/%d fm=%d/%d fs=%u match=%s\n",
            argv[1], decoded.len, (unsigned long)rx.debug_symbols, (unsigned long)rx.debug_bits,
-           (unsigned long)rx.debug_chars, rx.sq_level, rx.sq_thresh, ok ? "yes" : "no");
+           (unsigned long)rx.debug_chars, rx.sq_level, rx.sq_thresh,
+           rx.debug_fec_metric[0], rx.debug_fec_metric[1], rx.debug_fec_selected,
+           ok ? "yes" : "no");
     if (decoded.data) {
         fwrite(decoded.data, 1, decoded.len < 500 ? decoded.len : 500, stdout);
         fputc('\n', stdout);

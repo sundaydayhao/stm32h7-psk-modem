@@ -36,6 +36,8 @@
 #define VIT_CHUNKSIZE 8U
 #define VIT_DUAL_CHUNKSIZE 8U
 #define VIT_MAX_STATES 32768U
+#define FEC_BRANCH_VOTE_HYSTERESIS 64
+#define FEC_PHASE_EVAL_PAIRS 896U
 #if defined(__GNUC__) && !defined(_WIN32)
 #define PSK_DTCM_BSS __attribute__((section(".dtcm_bss")))
 #define PSK_RAM_D2_BSS __attribute__((section(".ram_d2_bss")))
@@ -57,30 +59,34 @@ typedef struct {
     uint16_t bit_acc;
     int metric_ave;
     int metric_ready;
+    uint8_t rx_pair0[VIT_MAX_TRACEBACK];
+    uint8_t rx_pair1[VIT_MAX_TRACEBACK];
 } fec_branch_state_t;
 
 static unsigned char s_varicode_decode[2048];
 static unsigned char s_mfsk_decode[4096];
 static int s_tables_ready;
-static uint8_t s_vit_out0[VIT_MAX_STATES] PSK_DTCM_BSS;
-static uint8_t s_vit_out1[VIT_MAX_STATES] PSK_DTCM_BSS;
+static uint8_t s_vit_out_pair[VIT_MAX_STATES / 2U] PSK_DTCM_BSS;
 static uint8_t s_vit_decisions0[VIT_MAX_TRACEBACK][4096];
 static uint8_t s_vit_decisions1[VIT_MAX_TRACEBACK][4096] PSK_RAM_D2_BSS;
-static int16_t s_vit_metrics0_a[VIT_MAX_STATES];
+static int16_t s_vit_metrics0_a[VIT_MAX_STATES] PSK_DTCM_BSS;
 static int16_t s_vit_metrics0_b[VIT_MAX_STATES];
 static int16_t s_vit_metrics1_a[VIT_MAX_STATES];
-static int16_t s_vit_metrics1_b[VIT_MAX_STATES] PSK_RAM_D3_BSS;
+static int16_t s_vit_metrics1_b[VIT_MAX_STATES];
 static uint16_t s_vit_sequence0[256];
 static uint16_t s_vit_sequence1[256];
 static uint8_t s_inlv_table0[2560];
 static uint8_t s_inlv_table1[2560];
 static fec_branch_state_t s_fec_branch[2] = {
-    {s_vit_decisions0, s_vit_metrics0_a, s_vit_metrics0_b, s_vit_sequence0, s_inlv_table0, 0, 0, 1U, 0, 0},
-    {s_vit_decisions1, s_vit_metrics1_a, s_vit_metrics1_b, s_vit_sequence1, s_inlv_table1, 0, 0, 1U, 0, 0},
+    {.decisions = s_vit_decisions0, .metrics_a = s_vit_metrics0_a, .metrics_b = s_vit_metrics0_b,
+     .sequence = s_vit_sequence0, .inlv_table = s_inlv_table0, .bit_acc = 1U},
+    {.decisions = s_vit_decisions1, .metrics_a = s_vit_metrics1_a, .metrics_b = s_vit_metrics1_b,
+     .sequence = s_vit_sequence1, .inlv_table = s_inlv_table1, .bit_acc = 1U},
 };
 static uint8_t s_vit_table_k;
 static uint32_t s_vit_table_poly1;
 static uint32_t s_vit_table_poly2;
+static uint8_t s_vit_input_flip;
 
 static float circular_distance(float a, float b);
 static psk_rtty_complex_t channel_sync_sample(const psk_rtty_rx_t *rx);
@@ -89,6 +95,8 @@ static float nearest_phase_distance(float angle, uint8_t states);
 static void update_quality_squelch(psk_rtty_rx_t *rx, float dist, float step, int valid);
 static void prepare_viterbi_tables(const psk_rtty_rx_t *rx, uint16_t nstates);
 static void reset_fec_branches(psk_rtty_rx_t *rx);
+static void reset_fec_branch(psk_rtty_rx_t *rx, uint8_t branch_index);
+static void update_fec_phase_search(psk_rtty_rx_t *rx, fec_branch_state_t *branch);
 
 static const unsigned char s_rtty_table[0x20][2] = {
     {0, 0}, {'E', '3'}, {'\n', '\n'}, {'A', '-'}, {' ', ' '}, {'S', '\''}, {'I', '8'}, {'U', '7'},
@@ -324,6 +332,8 @@ static void reset_runtime(psk_rtty_rx_t *rx)
     rx->nlp_k = PSKCORE_NLP_K;
     rx->agc_ave = 0.0f;
     rx->dev_ave = 90.0f;
+    rx->bpsk_average_amp = 0.0f;
+    rx->psk8_last_phase_quality = 0.0f;
     rx->bit_phase_pos = 0.0f;
     rx->second_decim = (int)((float)rx->config.sample_rate_hz / (params.baud * 16.0f) + 0.5f);
     if (rx->second_decim < 1) {
@@ -387,12 +397,20 @@ static void reset_runtime(psk_rtty_rx_t *rx)
     rx->fec_punctured = params.punctured;
     rx->use_mfsk_varicode = params.mfsk_varicode;
     rx->fec_pair_count = 0;
-    rx->fec_dual_branch = (rx->config.mode == PSK_RTTY_MODE_8PSK125F) ? 1U : 0U;
+    rx->fec_dual_branch = (rx->config.mode == PSK_RTTY_MODE_BPSK63F ||
+                           rx->config.mode == PSK_RTTY_MODE_8PSK125F) ? 1U : 0U;
     rx->fec_rxbitstate = 0;
     rx->fec_bit_phase = 0;
     rx->fec_last_encoded_bit = 0;
     rx->fec_have_last_encoded_bit = 0;
     rx->fec_pair_len = 0;
+    rx->fec_stream_bit_count = 0;
+    rx->fec_phase_metric[0] = 0;
+    rx->fec_phase_metric[1] = 0;
+    rx->fec_phase_search = (rx->config.mode == PSK_RTTY_MODE_8PSK250F) ? 1U : 0U;
+    rx->fec_phase_candidate = 0U;
+    rx->fec_phase_align_pending = rx->fec_phase_search;
+    rx->fec_output_enabled = rx->fec_phase_search ? 0U : 1U;
     rx->fec_k = params.fec_k;
     rx->fec_state = 0;
     rx->fec_mask = params.fec_k ? ((1UL << params.fec_k) - 1UL) : 0UL;
@@ -403,6 +421,9 @@ static void reset_runtime(psk_rtty_rx_t *rx)
         rx->vit_traceback = VIT_MAX_TRACEBACK;
     }
     rx->vit_chunksize = rx->fec_dual_branch ? VIT_DUAL_CHUNKSIZE : VIT_CHUNKSIZE;
+    rx->debug_fec_metric[0] = 0;
+    rx->debug_fec_metric[1] = 0;
+    rx->debug_fec_selected = 0U;
     rx->inlv_depth = params.interleave_depth;
     rx->inlv_len = (uint16_t)(params.interleave_depth * 4U);
     if (rx->inlv_len > sizeof(s_inlv_table0)) {
@@ -510,7 +531,10 @@ static void push_mfsk_varicode_bit(psk_rtty_rx_t *rx, int bit)
         const uint16_t code = rx->bit_acc >> 1;
         const unsigned char ch = code < sizeof(s_mfsk_decode) ? s_mfsk_decode[code] : 0U;
         rx->debug_delims++;
-        if (rx->sq_open && rx->sq_stable_symbols >= SQ_EMIT_STABLE_SYMBOLS) {
+        const int fec_ready = rx->inlv_depth == 0U ||
+                              s_fec_branch[0].pair_count > (uint32_t)rx->inlv_depth + rx->vit_traceback;
+        if (fec_ready && rx->fec_output_enabled && rx->sq_open &&
+            rx->sq_stable_symbols >= SQ_EMIT_STABLE_SYMBOLS) {
             if (ch != 0U) {
                 rx->debug_chars++;
                 emit(rx, (char)ch);
@@ -524,17 +548,12 @@ static void push_mfsk_varicode_bit(psk_rtty_rx_t *rx, int bit)
 
 static int fec_branch_selected(uint8_t branch_index)
 {
-    const int vote_hysteresis = 256;
     fec_branch_state_t *branch = &s_fec_branch[branch_index];
     fec_branch_state_t *other = &s_fec_branch[branch_index ^ 1U];
-    if (!other->metric_ready) {
-        return branch_index == 0U;
-    }
-    if (!branch->metric_ready) {
+    if (!branch->metric_ready || !other->metric_ready) {
         return 0;
     }
-    return branch_index == 0U ? (branch->metric_ave + vote_hysteresis >= other->metric_ave)
-                              : (branch->metric_ave > other->metric_ave + vote_hysteresis);
+    return branch->metric_ave > other->metric_ave + FEC_BRANCH_VOTE_HYSTERESIS;
 }
 
 static void push_mfsk_varicode_bit_branch(psk_rtty_rx_t *rx, fec_branch_state_t *branch,
@@ -545,7 +564,9 @@ static void push_mfsk_varicode_bit_branch(psk_rtty_rx_t *rx, fec_branch_state_t 
         const uint16_t code = branch->bit_acc >> 1;
         const unsigned char ch = code < sizeof(s_mfsk_decode) ? s_mfsk_decode[code] : 0U;
         rx->debug_delims++;
-        if (rx->sq_open && rx->sq_stable_symbols >= SQ_EMIT_STABLE_SYMBOLS &&
+        const int fec_ready = rx->inlv_depth == 0U ||
+                              branch->pair_count > (uint32_t)rx->inlv_depth + rx->vit_traceback;
+        if (fec_ready && rx->sq_open && rx->sq_stable_symbols >= SQ_EMIT_STABLE_SYMBOLS &&
             fec_branch_selected(branch_index)) {
             if (ch != 0U) {
                 rx->debug_chars++;
@@ -576,24 +597,29 @@ static uint8_t parity32(uint32_t value)
     return (uint8_t)((0x6996U >> value) & 1U);
 }
 
+static void reset_fec_branch(psk_rtty_rx_t *rx, uint8_t branch_index)
+{
+    const uint16_t nstates = rx->fec_k ? (uint16_t)(1UL << (rx->fec_k - 1U)) : 0U;
+    fec_branch_state_t *state = &s_fec_branch[branch_index];
+
+    state->pair_count = 0;
+    state->vit_step = 0;
+    state->bit_acc = 1U;
+    state->metric_ave = 0;
+    state->metric_ready = 0;
+    memset(state->inlv_table, FEC_PUNCTURE, sizeof(s_inlv_table0));
+    if (nstates != 0U) {
+        memset(state->metrics_a, 0, (size_t)nstates * sizeof(state->metrics_a[0]));
+        memset(state->metrics_b, 0, (size_t)nstates * sizeof(state->metrics_b[0]));
+    }
+}
+
 static void reset_fec_branches(psk_rtty_rx_t *rx)
 {
     const uint8_t branch_count = rx->fec_dual_branch ? 2U : 1U;
-    const uint16_t nstates = rx->fec_k ? (uint16_t)(1UL << (rx->fec_k - 1U)) : 0U;
 
     for (uint8_t branch = 0; branch < branch_count; ++branch) {
-        fec_branch_state_t *state = &s_fec_branch[branch];
-        state->pair_count = 0;
-        state->vit_step = 0;
-        state->bit_acc = 1U;
-        state->metric_ave = 0;
-        state->metric_ready = 0;
-        memset(state->inlv_table, FEC_PUNCTURE, sizeof(s_inlv_table0));
-        memset(state->decisions, 0, (size_t)VIT_MAX_TRACEBACK * 4096U);
-        if (nstates != 0U) {
-            memset(state->metrics_a, 0, (size_t)nstates * sizeof(state->metrics_a[0]));
-            memset(state->metrics_b, 0, (size_t)nstates * sizeof(state->metrics_b[0]));
-        }
+        reset_fec_branch(rx, branch);
     }
 }
 
@@ -618,6 +644,42 @@ static void update_fec_metric(fec_branch_state_t *branch, int metric)
     } else {
         branch->metric_ave = ((branch->metric_ave * 19) + metric) / 20;
     }
+}
+
+static void update_fec_phase_search(psk_rtty_rx_t *rx, fec_branch_state_t *branch)
+{
+    if (rx->fec_phase_search == 0U || rx->fec_phase_search >= 3U ||
+        branch->pair_count < FEC_PHASE_EVAL_PAIRS) {
+        return;
+    }
+
+    const uint8_t candidate = rx->fec_phase_candidate;
+    rx->fec_phase_metric[candidate] = branch->metric_ave;
+    rx->debug_fec_metric[candidate] = branch->metric_ave;
+
+    if (rx->fec_phase_search == 1U) {
+        rx->fec_phase_search = 2U;
+        rx->fec_phase_candidate = 1U;
+        rx->fec_phase_align_pending = 1U;
+        rx->fec_pair_len = 0U;
+        rx->bit_acc = 1U;
+        reset_fec_branch(rx, 0U);
+        return;
+    }
+
+    if (rx->fec_phase_metric[1] > rx->fec_phase_metric[0]) {
+        rx->fec_phase_candidate = 1U;
+        rx->debug_fec_selected = 1U;
+    } else {
+        rx->fec_phase_candidate = 0U;
+        rx->debug_fec_selected = 0U;
+        rx->fec_phase_align_pending = 1U;
+        rx->fec_pair_len = 0U;
+        rx->bit_acc = 1U;
+        reset_fec_branch(rx, 0U);
+    }
+    rx->fec_phase_search = 3U;
+    rx->fec_output_enabled = 1U;
 }
 
 static void fec_deinterleave_pair(psk_rtty_rx_t *rx, fec_branch_state_t *state, uint8_t pair[2])
@@ -659,14 +721,17 @@ static void prepare_viterbi_tables(const psk_rtty_rx_t *rx, uint16_t nstates)
         return;
     }
 
-    for (uint32_t state = 0; state < nstates; ++state) {
-        const uint32_t s0 = state;
-        const uint32_t s1 = state + nstates;
-        s_vit_out0[state] = (uint8_t)(parity32(s0 & rx->fec_poly1) |
-                                      (parity32(s0 & rx->fec_poly2) << 1U));
-        s_vit_out1[state] = (uint8_t)(parity32(s1 & rx->fec_poly1) |
-                                      (parity32(s1 & rx->fec_poly2) << 1U));
+    for (uint32_t pred = 0; pred < ((uint32_t)nstates >> 1U); ++pred) {
+        const uint32_t even_state = pred << 1U;
+        const uint32_t odd_state = even_state + 1U;
+        const uint8_t even_out = (uint8_t)(parity32(even_state & rx->fec_poly1) |
+                                           (parity32(even_state & rx->fec_poly2) << 1U));
+        const uint8_t odd_out = (uint8_t)(parity32(odd_state & rx->fec_poly1) |
+                                          (parity32(odd_state & rx->fec_poly2) << 1U));
+        s_vit_out_pair[pred] = (uint8_t)(even_out | (odd_out << 2U));
     }
+    s_vit_input_flip = (uint8_t)(((rx->fec_poly1 & nstates) ? 1U : 0U) |
+                                 ((rx->fec_poly2 & nstates) ? 2U : 0U));
 
     s_vit_table_k = rx->fec_k;
     s_vit_table_poly1 = rx->fec_poly1;
@@ -679,7 +744,7 @@ static int vit_get_decision(const fec_branch_state_t *branch, uint8_t step, uint
 }
 
 static uint8_t vit_traceback(psk_rtty_rx_t *rx, fec_branch_state_t *branch,
-                             uint16_t nstates, const int16_t *metrics)
+                             uint16_t nstates, const int16_t *metrics, int *metric)
 {
     int16_t best_metric = metrics[0];
     uint16_t state = 0;
@@ -703,6 +768,22 @@ static uint8_t vit_traceback(psk_rtty_rx_t *rx, fec_branch_state_t *branch,
     for (uint8_t i = 0; i < rx->vit_chunksize; ++i) {
         out = (uint8_t)((out << 1U) | (branch->sequence[i] & 1U));
     }
+
+    int path_metric = 0;
+    uint8_t metric_step = (uint8_t)((step + 1U) % VIT_MAX_TRACEBACK);
+    for (uint8_t i = 0; i < rx->vit_chunksize; ++i) {
+        const uint16_t current_state = branch->sequence[i + 1U];
+        const int decision = vit_get_decision(branch, metric_step, current_state);
+        const uint16_t base_state = (uint16_t)(current_state & (nstates - 1U));
+        const uint8_t packed = s_vit_out_pair[base_state >> 1U];
+        uint8_t expected = (base_state & 1U) ? (uint8_t)(packed >> 2U) : (uint8_t)(packed & 3U);
+        if (decision) {
+            expected ^= s_vit_input_flip;
+        }
+        path_metric += branch_metric(expected, branch->rx_pair0[metric_step], branch->rx_pair1[metric_step]);
+        metric_step = (uint8_t)((metric_step + 1U) % VIT_MAX_TRACEBACK);
+    }
+    *metric = path_metric;
     return out;
 }
 
@@ -723,23 +804,46 @@ static int fec_decode_pair(psk_rtty_rx_t *rx, fec_branch_state_t *branch,
     for (uint8_t expected = 0; expected < 4U; ++expected) {
         metric_table[expected] = (int16_t)branch_metric(expected, b0, b1);
     }
+    branch->rx_pair0[branch->vit_step] = b0;
+    branch->rx_pair1[branch->vit_step] = b1;
     uint8_t *decision_row = branch->decisions[branch->vit_step];
+    const uint16_t predecessor_half = (uint16_t)(nstates >> 1U);
     for (uint16_t state_base = 0; state_base < nstates; state_base = (uint16_t)(state_base + 8U)) {
         uint8_t decision_byte = 0;
-        for (uint8_t offset = 0; offset < 8U; ++offset) {
-            const uint16_t state = (uint16_t)(state_base + offset);
-            const uint16_t p0 = (uint16_t)(state >> 1U);
-            const uint16_t p1 = (uint16_t)(p0 + (nstates >> 1U));
-            const int16_t m0 = (int16_t)(prev[p0] + metric_table[s_vit_out0[state]]);
-            const int16_t m1 = (int16_t)(prev[p1] + metric_table[s_vit_out1[state]]);
-            if (m0 > m1) {
-                curr[state] = m0;
+        const uint16_t pred_base = (uint16_t)(state_base >> 1U);
+        for (uint8_t pair = 0; pair < 4U; ++pair) {
+            const uint16_t pred = (uint16_t)(pred_base + pair);
+            const uint16_t state_even = (uint16_t)(state_base + pair * 2U);
+            const uint16_t state_odd = (uint16_t)(state_even + 1U);
+            const int16_t path0 = prev[pred];
+            const int16_t path1 = prev[pred + predecessor_half];
+            const uint8_t packed = s_vit_out_pair[pred];
+            const uint8_t out_even = packed & 3U;
+            const uint8_t out_odd = packed >> 2U;
+
+            const int16_t even0 = (int16_t)(path0 + metric_table[out_even]);
+            const int16_t even1 = (int16_t)(path1 + metric_table[out_even ^ s_vit_input_flip]);
+            if (even0 > even1) {
+                curr[state_even] = even0;
             } else {
-                curr[state] = m1;
-                decision_byte |= (uint8_t)(1U << offset);
+                curr[state_even] = even1;
+                decision_byte |= (uint8_t)(1U << (pair * 2U));
             }
-            if (curr[state] > max_metric) {
-                max_metric = curr[state];
+
+            const int16_t odd0 = (int16_t)(path0 + metric_table[out_odd]);
+            const int16_t odd1 = (int16_t)(path1 + metric_table[out_odd ^ s_vit_input_flip]);
+            if (odd0 > odd1) {
+                curr[state_odd] = odd0;
+            } else {
+                curr[state_odd] = odd1;
+                decision_byte |= (uint8_t)(1U << (pair * 2U + 1U));
+            }
+
+            if (curr[state_even] > max_metric) {
+                max_metric = curr[state_even];
+            }
+            if (curr[state_odd] > max_metric) {
+                max_metric = curr[state_odd];
             }
         }
         decision_row[state_base >> 3U] = decision_byte;
@@ -755,8 +859,7 @@ static int fec_decode_pair(psk_rtty_rx_t *rx, fec_branch_state_t *branch,
     branch->pair_count++;
     if ((branch->pair_count % rx->vit_chunksize) == 0U &&
         branch->pair_count > rx->vit_traceback) {
-        *decoded = vit_traceback(rx, branch, nstates, curr);
-        *metric = max_metric;
+        *decoded = vit_traceback(rx, branch, nstates, curr, metric);
         return 1;
     }
     return 0;
@@ -781,12 +884,24 @@ static void decode_fec_pair_for_branch(psk_rtty_rx_t *rx, uint8_t branch_index, 
     int metric = 0;
     if (fec_decode_pair(rx, branch, pair[0], pair[1], &decoded, &metric)) {
         update_fec_metric(branch, metric);
+        if (rx->fec_phase_search != 0U) {
+            rx->debug_fec_metric[rx->fec_phase_candidate] = branch->metric_ave;
+        } else {
+            rx->debug_fec_metric[branch_index] = branch->metric_ave;
+        }
+        if (rx->fec_dual_branch) {
+            rx->debug_fec_selected = fec_branch_selected(1U) ? 1U : 0U;
+        }
         push_payload_bits_from_fec(rx, branch, branch_index, decoded);
+        update_fec_phase_search(rx, branch);
     }
 }
 
 static void push_fec_encoded_bit(psk_rtty_rx_t *rx, uint8_t bit)
 {
+    const uint8_t stream_parity = (uint8_t)(rx->fec_stream_bit_count & 1U);
+    rx->fec_stream_bit_count++;
+
     if (rx->fec_dual_branch) {
         if (!rx->fec_have_last_encoded_bit) {
             rx->fec_last_encoded_bit = bit;
@@ -800,6 +915,13 @@ static void push_fec_encoded_bit(psk_rtty_rx_t *rx, uint8_t bit)
         rx->fec_rxbitstate ^= 1U;
         rx->fec_pair_count++;
         return;
+    }
+
+    if (rx->fec_phase_align_pending) {
+        if (stream_parity != rx->fec_phase_candidate) {
+            return;
+        }
+        rx->fec_phase_align_pending = 0U;
     }
 
     rx->fec_pair_buf[rx->fec_pair_len++] = bit;
@@ -1140,7 +1262,71 @@ static uint8_t inverse_psk_symbol(const psk_rtty_rx_t *rx, float angle, float do
     return map[phase_index(angle, 8U)];
 }
 
-static void process_raw_symbol(psk_rtty_rx_t *rx, uint8_t symbol, uint8_t phase_idx)
+static uint8_t bpsk_soft_bit(psk_rtty_rx_t *rx, float angle, float signal_amp)
+{
+    const float power = signal_amp * signal_amp;
+    if (rx->bpsk_average_amp <= 0.0f) {
+        rx->bpsk_average_amp = power;
+    } else {
+        rx->bpsk_average_amp = (49.0f * rx->bpsk_average_amp + power) / 50.0f;
+    }
+
+    float amplitude_penalty = 2.0f;
+    if (power > 0.0f && rx->bpsk_average_amp > 0.0f) {
+        const float ratio = power > rx->bpsk_average_amp ?
+                            power / rx->bpsk_average_amp : rx->bpsk_average_amp / power;
+        amplitude_penalty = sqrtf(ratio);
+        if (amplitude_penalty < 1.0f) {
+            amplitude_penalty = 1.0f;
+        } else if (amplitude_penalty > 1000000.0f) {
+            amplitude_penalty = 1000000.0f;
+        }
+    }
+
+    float alpha = angle / (float)M_PI;
+    if (alpha > 1.0f) {
+        alpha = 2.0f - alpha;
+    }
+    const float phase_soft = 127.0f - 255.0f * alpha;
+    float soft = phase_soft / (1.0f + amplitude_penalty * 0.5f) + 128.0f;
+    if (soft < 0.0f) {
+        soft = 0.0f;
+    } else if (soft > 255.0f) {
+        soft = 255.0f;
+    }
+    return (uint8_t)(soft + 0.5f);
+}
+
+static void push_8psk_soft_bits(psk_rtty_rx_t *rx, uint8_t phase_idx, float angle)
+{
+    float phase_quality = fabsf(cosf(4.0f * angle));
+    phase_quality = 0.5f * (phase_quality + rx->psk8_last_phase_quality);
+    rx->psk8_last_phase_quality = phase_quality;
+
+    int quality_error = (int)(128.0f - 128.0f * phase_quality);
+    if (quality_error > 112) {
+        push_fec_encoded_bit(rx, FEC_PUNCTURE);
+        push_fec_encoded_bit(rx, FEC_PUNCTURE);
+        push_fec_encoded_bit(rx, FEC_PUNCTURE);
+        return;
+    }
+    if (quality_error < 42) {
+        quality_error = 0;
+    } else {
+        quality_error /= 2;
+    }
+
+    const uint8_t soft_idx = (uint8_t)((8U - phase_idx) & 7U);
+    for (int bit = 2; bit >= 0; --bit) {
+        const uint8_t base = s_gray_8psk_softbits[soft_idx][bit];
+        const uint8_t soft = base > 128U ? (uint8_t)(base - quality_error) :
+                                          (uint8_t)(base + quality_error);
+        push_fec_encoded_bit(rx, soft);
+    }
+}
+
+static void process_raw_symbol(psk_rtty_rx_t *rx, uint8_t symbol, uint8_t phase_idx,
+                               float angle, float signal_amp)
 {
     rx->debug_symbols++;
     if (rx->warmup_symbols > 0) {
@@ -1157,10 +1343,11 @@ static void process_raw_symbol(psk_rtty_rx_t *rx, uint8_t symbol, uint8_t phase_
     }
 
     if (rx->psk_family == PSK_FAMILY_BPSK) {
-        const uint8_t bit = symbol == 2U ? 1U : 0U;
+        const uint8_t soft = bpsk_soft_bit(rx, angle, signal_amp);
+        const uint8_t bit = soft >= 128U ? 1U : 0U;
         rx->debug_bits++;
         bit ? rx->debug_ones++ : rx->debug_zeros++;
-        push_fec_encoded_bit(rx, bit ? 255U : 0U);
+        push_fec_encoded_bit(rx, soft);
         return;
     }
 
@@ -1187,20 +1374,12 @@ static void process_raw_symbol(psk_rtty_rx_t *rx, uint8_t symbol, uint8_t phase_
         push_mfsk_varicode_bit(rx, b2);
         return;
     }
-    const uint8_t soft_idx = (uint8_t)((8U - phase_idx) & 7U);
-    const uint8_t soft0 = s_gray_8psk_softbits[soft_idx][2];
-    const uint8_t soft1 = s_gray_8psk_softbits[soft_idx][1];
-    const uint8_t soft2 = s_gray_8psk_softbits[soft_idx][0];
     if (rx->fec_punctured) {
-        push_fec_encoded_bit(rx, soft0);
-        push_fec_encoded_bit(rx, soft1);
-        push_fec_encoded_bit(rx, soft2);
+        push_8psk_soft_bits(rx, phase_idx, angle);
         push_fec_encoded_bit(rx, FEC_PUNCTURE);
         return;
     }
-    push_fec_encoded_bit(rx, soft0);
-    push_fec_encoded_bit(rx, soft1);
-    push_fec_encoded_bit(rx, soft2);
+    push_8psk_soft_bits(rx, phase_idx, angle);
 }
 
 static float circular_distance(float a, float b)
@@ -1372,7 +1551,7 @@ static void finish_channel_psk_symbol(psk_rtty_rx_t *rx)
             if (rx->psk_family == PSK_FAMILY_QPSK) {
                 process_qpsk_symbol(rx, angle);
             } else {
-                process_raw_symbol(rx, inverse_psk_symbol(rx, angle, dot), phase_idx);
+                process_raw_symbol(rx, inverse_psk_symbol(rx, angle, dot), phase_idx, angle, mag);
             }
         }
 

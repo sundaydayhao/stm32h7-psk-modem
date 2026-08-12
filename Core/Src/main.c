@@ -177,7 +177,7 @@ int main(void)
             last_diag_tick = now;
             audio_input_debug_snapshot(&audio_debug);
             psk_modem_debug_snapshot(&g_modem, &modem_debug);
-            printf("[diag] mode=%s tone=%dHz sel=%dHz afc=%d sql=%d blocks=%lu empty=%lu cb=%lu/%lu in=%u lane=%u q=%lu ov=%lu maxq=%lu peak=%dHz sq=%d/%d open=%d chars=%lu\r\n",
+            printf("[diag] mode=%s tone=%dHz sel=%dHz afc=%d sql=%d blocks=%lu empty=%lu cb=%lu/%lu in=%u lane=%u q=%lu ov=%lu maxq=%lu peak=%dHz sq=%d/%d open=%d chars=%lu fm=%d/%d fs=%u\r\n",
                    psk_modem_mode_name(psk_modem_mode(&g_modem)),
                    modem_debug.tone_hz,
                    modem_debug.selected_tone_hz,
@@ -196,7 +196,10 @@ int main(void)
                    modem_debug.sq_level,
                    modem_debug.sq_thresh,
                    modem_debug.sq_open,
-                   modem_debug.chars);
+                   modem_debug.chars,
+                   modem_debug.fec_metric[0],
+                   modem_debug.fec_metric[1],
+                   modem_debug.fec_selected);
         }
 
         if (!g_serial_test_mode) {
@@ -328,7 +331,14 @@ static void poll_serial_commands(char *text, size_t text_len, spectrum_t *spectr
                     arg++;
                 }
                 arg = trim_ascii(arg);
-                g_rx_log_hex_mode = ascii_equal_ignore_case(arg, "HEX") ? 1U : 0U;
+                if (ascii_equal_ignore_case(arg, "HEX")) {
+                    g_rx_log_hex_mode = 1U;
+                } else if (ascii_equal_ignore_case(arg, "TEXT")) {
+                    g_rx_log_hex_mode = 0U;
+                } else {
+                    printf("[cmd] error unknown log format '%s'\r\n", arg);
+                    continue;
+                }
                 reset_rx_log();
                 printf("[log] rx=%s\r\n", g_rx_log_hex_mode ? "HEX" : "TEXT");
             } else if (ascii_equal_ignore_case(cmd, "STATUS")) {

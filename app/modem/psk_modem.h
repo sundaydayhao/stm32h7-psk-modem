@@ -41,6 +41,8 @@ typedef struct {
     int warmup_symbols;
     int tone_hz;
     int selected_tone_hz;
+    int fec_metric[2];
+    uint8_t fec_selected;
 } psk_modem_debug_t;
 
 void psk_modem_init(psk_modem_t *m, const psk_modem_config_t *config);
