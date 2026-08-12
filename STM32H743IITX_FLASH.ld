@@ -177,6 +177,22 @@ SECTIONS
     . = ALIGN(8);
   } >DTCMRAM
 
+  .ram_d2_bss (NOLOAD) :
+  {
+    . = ALIGN(8);
+    *(.ram_d2_bss)
+    *(.ram_d2_bss*)
+    . = ALIGN(8);
+  } >RAM_D2
+
+  .ram_d3_bss (NOLOAD) :
+  {
+    . = ALIGN(8);
+    *(.ram_d3_bss)
+    *(.ram_d3_bss*)
+    . = ALIGN(8);
+  } >RAM_D3
+
   .dtcm_stack (NOLOAD) :
   {
     . = ALIGN(8);

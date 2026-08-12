@@ -577,3 +577,100 @@ Generated local log:
    - puncture count,
    - deinterleaver fill/warmup state,
    - varicode invalid/unknown count.
+
+## 2026-08-12 Late Session Handoff: K16 FEC RAM Split And Board Status
+
+User request:
+
+- Focus on `8PSK125`, `8PSK125F`, and `8PSK250F`.
+- Implement the proposed K=16 Viterbi RAM split/optimization first.
+- Then implement fldigi-style dual branch K=16 8PSK-FEC.
+
+Current modified source files:
+
+- `STM32H743IITX_FLASH.ld`
+  - Added `.ram_d2_bss` mapped to `RAM_D2`.
+  - Added `.ram_d3_bss` mapped to `RAM_D3`.
+- `third_party/psk_rtty/include/psk_rtty.h`
+  - Removed large Viterbi/deinterleaver arrays from `psk_rtty_rx_t`.
+  - Added small K16 FEC branch control fields:
+    - `fec_dual_branch`
+    - `fec_last_encoded_bit`
+    - `fec_have_last_encoded_bit`
+- `third_party/psk_rtty/psk_rtty.c`
+  - K=16 Viterbi state moved to file-static workspaces.
+  - Hot Viterbi output tables remain in `.dtcm_bss`.
+  - Second branch decisions partially placed in `.ram_d2_bss`.
+  - Second branch metric buffer partially placed in `.ram_d3_bss`.
+  - Added `fec_branch_state_t` and two branch workspaces.
+  - Added two adjacent bit-pair FEC branches for `8PSK125F`.
+  - Added character-level branch voting with metric hysteresis.
+  - Kept `8PSK250F` on single K16 branch for now; dual K16 at 250 baud overloads CPU.
+  - Optimized Viterbi decision writes:
+    - removed per-step 4 KB `memset`,
+    - writes one packed decision byte per 8 states.
+  - Current `VIT_MAX_TRACEBACK = 64`.
+  - Current `VIT_DUAL_CHUNKSIZE = 8`.
+
+Current firmware memory after build:
+
+- `DTCMRAM: 72 KB / 128 KB = 56.25%`
+- `RAM_D1: 496576 B / 512 KB = 94.71%`
+- `RAM_D2: 256 KB / 288 KB = 88.89%`
+- `RAM_D3: 64 KB / 64 KB = 100.00%`
+- `ROM: about 82.4 KB`
+
+Validation completed:
+
+- Host full regression:
+  - `PASS=27 FAIL=0 NO-WAV=0 TOTAL=27`
+- Board tests, important observations:
+  - `8PSK125` passed in single and repeated tests with `BER=0`.
+  - `8PSK125F` passed once after enabling dual branch, but still fails in other runs.
+  - `8PSK250F` passed once in a targeted two-mode run, but still fails in other runs.
+  - `8PSK250F` overflow was fixed when kept single-branch:
+    - logs showed `q=0..1`, `ov=1`.
+  - Dual-branch K16 at 250 baud caused severe overflow, so it is not enabled for `8PSK250F`.
+  - Current remaining problem is not just queue overflow. K16 FEC board decode quality is still unstable.
+
+Board regression examples from this session:
+
+- Full host:
+  - `PASS=27 FAIL=0`
+- Targeted board run after current code:
+  - `8PSK125`: PASS, `BER=0.0000%`, `CER=0.0000%`.
+  - `8PSK125F`: sometimes PASS, often FAIL around `BER=36-37%`, `CER=93-94%`.
+  - `8PSK250F`: sometimes PASS in targeted runs, often FAIL around `BER=49-54%` in failing runs.
+
+Important interpretation:
+
+- The RAM split and inner-loop optimization solved the D1 pressure and fixed the `8PSK250F` queue overflow when `8PSK250F` uses one K16 branch.
+- The fldigi-style second branch helps `8PSK125F` enough to pass at least once, but does not make board decode robust.
+- The next likely issues are board signal quality and symbol/phase/soft-decision behavior, not raw RAM layout.
+- Do not enable dual K16 branch for `8PSK250F` unless CPU speed is increased or Viterbi is optimized further.
+
+Recommended next debugging:
+
+1. Add board capture/replay before more protocol changes:
+   - capture post-decimation board samples for `8PSK125F` and `8PSK250F`,
+   - decode captured samples with the host tool,
+   - compare to direct host WAV decode.
+
+2. Add diagnostics for K16 FEC quality:
+   - branch 0/1 metric averages,
+   - selected branch count,
+   - Viterbi best metric spread,
+   - deinterleaver fill age,
+   - FEC output chunk count,
+   - MFSK varicode valid/invalid counts.
+
+3. Investigate phase/timing quality:
+   - current logs often show `peak=0Hz` in failing 8PSK-FEC runs, which may indicate spectrum peak reporting is not meaningful for this path or the tone estimate path is stale.
+   - compare board symbol timing and differential phase distributions against host.
+
+4. Consider clock/CPU options only after capture/replay:
+   - CPU speed may help `8PSK250F` if dual branch is desired.
+   - CPU speed will not by itself fix `8PSK125F` when there is no overflow.
+
+5. Reset board after interrupted tests:
+   - latest session ended with pyOCD reset/go, restoring normal UI defaults.

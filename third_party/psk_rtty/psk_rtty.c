@@ -32,20 +32,52 @@
 #define PSK_FAMILY_8PSK 2U
 #define MAX_PSK_CARRIERS 12U
 #define FEC_PUNCTURE 128U
-#define VIT_MAX_TRACEBACK 80U
+#define VIT_MAX_TRACEBACK 64U
 #define VIT_CHUNKSIZE 8U
+#define VIT_DUAL_CHUNKSIZE 8U
 #define VIT_MAX_STATES 32768U
 #if defined(__GNUC__) && !defined(_WIN32)
 #define PSK_DTCM_BSS __attribute__((section(".dtcm_bss")))
+#define PSK_RAM_D2_BSS __attribute__((section(".ram_d2_bss")))
+#define PSK_RAM_D3_BSS __attribute__((section(".ram_d3_bss")))
 #else
 #define PSK_DTCM_BSS
+#define PSK_RAM_D2_BSS
+#define PSK_RAM_D3_BSS
 #endif
+
+typedef struct {
+    uint8_t (*decisions)[4096];
+    int16_t *metrics_a;
+    int16_t *metrics_b;
+    uint16_t *sequence;
+    uint8_t *inlv_table;
+    uint32_t pair_count;
+    uint8_t vit_step;
+    uint16_t bit_acc;
+    int metric_ave;
+    int metric_ready;
+} fec_branch_state_t;
 
 static unsigned char s_varicode_decode[2048];
 static unsigned char s_mfsk_decode[4096];
 static int s_tables_ready;
 static uint8_t s_vit_out0[VIT_MAX_STATES] PSK_DTCM_BSS;
 static uint8_t s_vit_out1[VIT_MAX_STATES] PSK_DTCM_BSS;
+static uint8_t s_vit_decisions0[VIT_MAX_TRACEBACK][4096];
+static uint8_t s_vit_decisions1[VIT_MAX_TRACEBACK][4096] PSK_RAM_D2_BSS;
+static int16_t s_vit_metrics0_a[VIT_MAX_STATES];
+static int16_t s_vit_metrics0_b[VIT_MAX_STATES];
+static int16_t s_vit_metrics1_a[VIT_MAX_STATES];
+static int16_t s_vit_metrics1_b[VIT_MAX_STATES] PSK_RAM_D3_BSS;
+static uint16_t s_vit_sequence0[256];
+static uint16_t s_vit_sequence1[256];
+static uint8_t s_inlv_table0[2560];
+static uint8_t s_inlv_table1[2560];
+static fec_branch_state_t s_fec_branch[2] = {
+    {s_vit_decisions0, s_vit_metrics0_a, s_vit_metrics0_b, s_vit_sequence0, s_inlv_table0, 0, 0, 1U, 0, 0},
+    {s_vit_decisions1, s_vit_metrics1_a, s_vit_metrics1_b, s_vit_sequence1, s_inlv_table1, 0, 0, 1U, 0, 0},
+};
 static uint8_t s_vit_table_k;
 static uint32_t s_vit_table_poly1;
 static uint32_t s_vit_table_poly2;
@@ -56,6 +88,7 @@ static void finish_channel_psk_symbol(psk_rtty_rx_t *rx);
 static float nearest_phase_distance(float angle, uint8_t states);
 static void update_quality_squelch(psk_rtty_rx_t *rx, float dist, float step, int valid);
 static void prepare_viterbi_tables(const psk_rtty_rx_t *rx, uint16_t nstates);
+static void reset_fec_branches(psk_rtty_rx_t *rx);
 
 static const unsigned char s_rtty_table[0x20][2] = {
     {0, 0}, {'E', '3'}, {'\n', '\n'}, {'A', '-'}, {' ', ' '}, {'S', '\''}, {'I', '8'}, {'U', '7'},
@@ -354,8 +387,11 @@ static void reset_runtime(psk_rtty_rx_t *rx)
     rx->fec_punctured = params.punctured;
     rx->use_mfsk_varicode = params.mfsk_varicode;
     rx->fec_pair_count = 0;
+    rx->fec_dual_branch = (rx->config.mode == PSK_RTTY_MODE_8PSK125F) ? 1U : 0U;
     rx->fec_rxbitstate = 0;
     rx->fec_bit_phase = 0;
+    rx->fec_last_encoded_bit = 0;
+    rx->fec_have_last_encoded_bit = 0;
     rx->fec_pair_len = 0;
     rx->fec_k = params.fec_k;
     rx->fec_state = 0;
@@ -366,24 +402,15 @@ static void reset_runtime(psk_rtty_rx_t *rx)
     if (rx->vit_traceback > VIT_MAX_TRACEBACK) {
         rx->vit_traceback = VIT_MAX_TRACEBACK;
     }
-    rx->vit_chunksize = VIT_CHUNKSIZE;
-    rx->vit_step = 0;
+    rx->vit_chunksize = rx->fec_dual_branch ? VIT_DUAL_CHUNKSIZE : VIT_CHUNKSIZE;
     rx->inlv_depth = params.interleave_depth;
     rx->inlv_len = (uint16_t)(params.interleave_depth * 4U);
-    if (rx->inlv_len > sizeof(rx->inlv_table)) {
-        rx->inlv_len = sizeof(rx->inlv_table);
+    if (rx->inlv_len > sizeof(s_inlv_table0)) {
+        rx->inlv_len = sizeof(s_inlv_table0);
     }
     memset(rx->fec_pending_bits, 0, sizeof(rx->fec_pending_bits));
     memset(rx->fec_pair_buf, 0, sizeof(rx->fec_pair_buf));
-    memset(rx->inlv_table, FEC_PUNCTURE, sizeof(rx->inlv_table));
-    memset(rx->vit_decisions, 0, sizeof(rx->vit_decisions));
-    if (params.fec_k) {
-        const uint16_t nstates = (uint16_t)(1UL << (params.fec_k - 1U));
-        for (uint16_t i = 0; i < nstates; ++i) {
-            rx->vit_metrics_a[i] = 0;
-            rx->vit_metrics_b[i] = 0;
-        }
-    }
+    reset_fec_branches(rx);
     memset(rx->carrier_i_acc, 0, sizeof(rx->carrier_i_acc));
     memset(rx->carrier_q_acc, 0, sizeof(rx->carrier_q_acc));
     memset(rx->carrier_i_prev, 0, sizeof(rx->carrier_i_prev));
@@ -495,6 +522,42 @@ static void push_mfsk_varicode_bit(psk_rtty_rx_t *rx, int bit)
     }
 }
 
+static int fec_branch_selected(uint8_t branch_index)
+{
+    const int vote_hysteresis = 256;
+    fec_branch_state_t *branch = &s_fec_branch[branch_index];
+    fec_branch_state_t *other = &s_fec_branch[branch_index ^ 1U];
+    if (!other->metric_ready) {
+        return branch_index == 0U;
+    }
+    if (!branch->metric_ready) {
+        return 0;
+    }
+    return branch_index == 0U ? (branch->metric_ave + vote_hysteresis >= other->metric_ave)
+                              : (branch->metric_ave > other->metric_ave + vote_hysteresis);
+}
+
+static void push_mfsk_varicode_bit_branch(psk_rtty_rx_t *rx, fec_branch_state_t *branch,
+                                          uint8_t branch_index, int bit)
+{
+    branch->bit_acc = (uint16_t)(((branch->bit_acc << 1) | (bit ? 1U : 0U)) & 0x0fffU);
+    if ((branch->bit_acc & 0x07U) == 1U) {
+        const uint16_t code = branch->bit_acc >> 1;
+        const unsigned char ch = code < sizeof(s_mfsk_decode) ? s_mfsk_decode[code] : 0U;
+        rx->debug_delims++;
+        if (rx->sq_open && rx->sq_stable_symbols >= SQ_EMIT_STABLE_SYMBOLS &&
+            fec_branch_selected(branch_index)) {
+            if (ch != 0U) {
+                rx->debug_chars++;
+                emit(rx, (char)ch);
+            } else if (code != 0U) {
+                rx->debug_unknown++;
+            }
+        }
+        branch->bit_acc = 1U;
+    }
+}
+
 static void push_payload_bit(psk_rtty_rx_t *rx, int bit)
 {
     if (rx->use_mfsk_varicode) {
@@ -513,7 +576,51 @@ static uint8_t parity32(uint32_t value)
     return (uint8_t)((0x6996U >> value) & 1U);
 }
 
-static void fec_deinterleave_pair(psk_rtty_rx_t *rx, uint8_t pair[2])
+static void reset_fec_branches(psk_rtty_rx_t *rx)
+{
+    const uint8_t branch_count = rx->fec_dual_branch ? 2U : 1U;
+    const uint16_t nstates = rx->fec_k ? (uint16_t)(1UL << (rx->fec_k - 1U)) : 0U;
+
+    for (uint8_t branch = 0; branch < branch_count; ++branch) {
+        fec_branch_state_t *state = &s_fec_branch[branch];
+        state->pair_count = 0;
+        state->vit_step = 0;
+        state->bit_acc = 1U;
+        state->metric_ave = 0;
+        state->metric_ready = 0;
+        memset(state->inlv_table, FEC_PUNCTURE, sizeof(s_inlv_table0));
+        memset(state->decisions, 0, (size_t)VIT_MAX_TRACEBACK * 4096U);
+        if (nstates != 0U) {
+            memset(state->metrics_a, 0, (size_t)nstates * sizeof(state->metrics_a[0]));
+            memset(state->metrics_b, 0, (size_t)nstates * sizeof(state->metrics_b[0]));
+        }
+    }
+}
+
+static void push_payload_bits_from_fec(psk_rtty_rx_t *rx, fec_branch_state_t *branch,
+                                       uint8_t branch_index, uint8_t decoded)
+{
+    for (int bit = (int)rx->vit_chunksize - 1; bit >= 0; --bit) {
+        const int payload_bit = (decoded >> bit) & 1U;
+        if (rx->fec_dual_branch && rx->use_mfsk_varicode) {
+            push_mfsk_varicode_bit_branch(rx, branch, branch_index, payload_bit);
+        } else {
+            push_payload_bit(rx, payload_bit);
+        }
+    }
+}
+
+static void update_fec_metric(fec_branch_state_t *branch, int metric)
+{
+    if (!branch->metric_ready) {
+        branch->metric_ave = metric;
+        branch->metric_ready = 1;
+    } else {
+        branch->metric_ave = ((branch->metric_ave * 19) + metric) / 20;
+    }
+}
+
+static void fec_deinterleave_pair(psk_rtty_rx_t *rx, fec_branch_state_t *state, uint8_t pair[2])
 {
     if (rx->inlv_depth == 0U || rx->inlv_len < 4U) {
         return;
@@ -521,12 +628,12 @@ static void fec_deinterleave_pair(psk_rtty_rx_t *rx, uint8_t pair[2])
 
     for (uint16_t k = 0; k < rx->inlv_depth; ++k) {
         const uint16_t base = (uint16_t)(k * 4U);
-        rx->inlv_table[base + 0U] = rx->inlv_table[base + 1U];
-        rx->inlv_table[base + 1U] = pair[0];
-        rx->inlv_table[base + 2U] = rx->inlv_table[base + 3U];
-        rx->inlv_table[base + 3U] = pair[1];
-        pair[0] = rx->inlv_table[base + 0U];
-        pair[1] = rx->inlv_table[base + 3U];
+        state->inlv_table[base + 0U] = state->inlv_table[base + 1U];
+        state->inlv_table[base + 1U] = pair[0];
+        state->inlv_table[base + 2U] = state->inlv_table[base + 3U];
+        state->inlv_table[base + 3U] = pair[1];
+        pair[0] = state->inlv_table[base + 0U];
+        pair[1] = state->inlv_table[base + 3U];
     }
 }
 
@@ -566,12 +673,13 @@ static void prepare_viterbi_tables(const psk_rtty_rx_t *rx, uint16_t nstates)
     s_vit_table_poly2 = rx->fec_poly2;
 }
 
-static int vit_get_decision(const psk_rtty_rx_t *rx, uint8_t step, uint16_t state)
+static int vit_get_decision(const fec_branch_state_t *branch, uint8_t step, uint16_t state)
 {
-    return (rx->vit_decisions[step][state >> 3U] >> (state & 7U)) & 1U;
+    return (branch->decisions[step][state >> 3U] >> (state & 7U)) & 1U;
 }
 
-static uint8_t vit_traceback(psk_rtty_rx_t *rx, uint16_t nstates, const int16_t *metrics)
+static uint8_t vit_traceback(psk_rtty_rx_t *rx, fec_branch_state_t *branch,
+                             uint16_t nstates, const int16_t *metrics)
 {
     int16_t best_metric = metrics[0];
     uint16_t state = 0;
@@ -582,31 +690,32 @@ static uint8_t vit_traceback(psk_rtty_rx_t *rx, uint16_t nstates, const int16_t 
         }
     }
 
-    uint8_t step = (uint8_t)((rx->vit_step + VIT_MAX_TRACEBACK - 1U) % VIT_MAX_TRACEBACK);
-    rx->vit_sequence[rx->vit_traceback] = state;
+    uint8_t step = (uint8_t)((branch->vit_step + VIT_MAX_TRACEBACK - 1U) % VIT_MAX_TRACEBACK);
+    branch->sequence[rx->vit_traceback] = state;
     for (int i = (int)rx->vit_traceback - 1; i >= 0; --i) {
-        const int decision = vit_get_decision(rx, step, state);
+        const int decision = vit_get_decision(branch, step, state);
         state = (uint16_t)(((uint32_t)state + (decision ? (uint32_t)nstates : 0UL)) >> 1U);
-        rx->vit_sequence[i] = state;
+        branch->sequence[i] = state;
         step = (uint8_t)((step + VIT_MAX_TRACEBACK - 1U) % VIT_MAX_TRACEBACK);
     }
 
     uint8_t out = 0;
     for (uint8_t i = 0; i < rx->vit_chunksize; ++i) {
-        out = (uint8_t)((out << 1U) | (rx->vit_sequence[i] & 1U));
+        out = (uint8_t)((out << 1U) | (branch->sequence[i] & 1U));
     }
     return out;
 }
 
-static int fec_decode_pair(psk_rtty_rx_t *rx, uint8_t b0, uint8_t b1, uint8_t *decoded)
+static int fec_decode_pair(psk_rtty_rx_t *rx, fec_branch_state_t *branch,
+                           uint8_t b0, uint8_t b1, uint8_t *decoded, int *metric)
 {
     if (!rx->fec_k || rx->fec_k > 16U) {
         return 0;
     }
 
     const uint16_t nstates = (uint16_t)(1UL << (rx->fec_k - 1U));
-    int16_t *prev = (rx->vit_step & 1U) ? rx->vit_metrics_b : rx->vit_metrics_a;
-    int16_t *curr = (rx->vit_step & 1U) ? rx->vit_metrics_a : rx->vit_metrics_b;
+    int16_t *prev = (branch->vit_step & 1U) ? branch->metrics_b : branch->metrics_a;
+    int16_t *curr = (branch->vit_step & 1U) ? branch->metrics_a : branch->metrics_b;
     int16_t max_metric = -32768;
     int16_t metric_table[4];
 
@@ -614,21 +723,26 @@ static int fec_decode_pair(psk_rtty_rx_t *rx, uint8_t b0, uint8_t b1, uint8_t *d
     for (uint8_t expected = 0; expected < 4U; ++expected) {
         metric_table[expected] = (int16_t)branch_metric(expected, b0, b1);
     }
-    memset(rx->vit_decisions[rx->vit_step], 0, (size_t)nstates >> 3U);
-    for (uint16_t state = 0; state < nstates; ++state) {
-        const uint16_t p0 = (uint16_t)(state >> 1U);
-        const uint16_t p1 = (uint16_t)(p0 + (nstates >> 1U));
-        const int16_t m0 = (int16_t)(prev[p0] + metric_table[s_vit_out0[state]]);
-        const int16_t m1 = (int16_t)(prev[p1] + metric_table[s_vit_out1[state]]);
-        if (m0 > m1) {
-            curr[state] = m0;
-        } else {
-            curr[state] = m1;
-            rx->vit_decisions[rx->vit_step][state >> 3U] |= (uint8_t)(1U << (state & 7U));
+    uint8_t *decision_row = branch->decisions[branch->vit_step];
+    for (uint16_t state_base = 0; state_base < nstates; state_base = (uint16_t)(state_base + 8U)) {
+        uint8_t decision_byte = 0;
+        for (uint8_t offset = 0; offset < 8U; ++offset) {
+            const uint16_t state = (uint16_t)(state_base + offset);
+            const uint16_t p0 = (uint16_t)(state >> 1U);
+            const uint16_t p1 = (uint16_t)(p0 + (nstates >> 1U));
+            const int16_t m0 = (int16_t)(prev[p0] + metric_table[s_vit_out0[state]]);
+            const int16_t m1 = (int16_t)(prev[p1] + metric_table[s_vit_out1[state]]);
+            if (m0 > m1) {
+                curr[state] = m0;
+            } else {
+                curr[state] = m1;
+                decision_byte |= (uint8_t)(1U << offset);
+            }
+            if (curr[state] > max_metric) {
+                max_metric = curr[state];
+            }
         }
-        if (curr[state] > max_metric) {
-            max_metric = curr[state];
-        }
+        decision_row[state_base >> 3U] = decision_byte;
     }
 
     if (max_metric > 12000) {
@@ -637,40 +751,67 @@ static int fec_decode_pair(psk_rtty_rx_t *rx, uint8_t b0, uint8_t b1, uint8_t *d
         }
     }
 
-    rx->vit_step = (uint8_t)((rx->vit_step + 1U) % VIT_MAX_TRACEBACK);
-    rx->fec_pair_count++;
-    if ((rx->fec_pair_count % rx->vit_chunksize) == 0U &&
-        rx->fec_pair_count > rx->vit_traceback) {
-        *decoded = vit_traceback(rx, nstates, curr);
+    branch->vit_step = (uint8_t)((branch->vit_step + 1U) % VIT_MAX_TRACEBACK);
+    branch->pair_count++;
+    if ((branch->pair_count % rx->vit_chunksize) == 0U &&
+        branch->pair_count > rx->vit_traceback) {
+        *decoded = vit_traceback(rx, branch, nstates, curr);
+        *metric = max_metric;
         return 1;
     }
     return 0;
 }
 
+static void decode_fec_pair_for_branch(psk_rtty_rx_t *rx, uint8_t branch_index, uint8_t current, uint8_t previous)
+{
+    fec_branch_state_t *branch = &s_fec_branch[branch_index];
+    uint8_t pair[2] = {current, previous};
+    if (rx->inlv_depth != 0U) {
+        fec_deinterleave_pair(rx, branch, pair);
+        const uint8_t tmp = pair[0];
+        pair[0] = pair[1];
+        pair[1] = tmp;
+    } else {
+        const uint8_t tmp = pair[0];
+        pair[0] = pair[1];
+        pair[1] = tmp;
+    }
+
+    uint8_t decoded = 0;
+    int metric = 0;
+    if (fec_decode_pair(rx, branch, pair[0], pair[1], &decoded, &metric)) {
+        update_fec_metric(branch, metric);
+        push_payload_bits_from_fec(rx, branch, branch_index, decoded);
+    }
+}
+
 static void push_fec_encoded_bit(psk_rtty_rx_t *rx, uint8_t bit)
 {
+    if (rx->fec_dual_branch) {
+        if (!rx->fec_have_last_encoded_bit) {
+            rx->fec_last_encoded_bit = bit;
+            rx->fec_have_last_encoded_bit = 1U;
+            rx->fec_rxbitstate = 1U;
+            return;
+        }
+        const uint8_t branch_index = rx->fec_rxbitstate ? 0U : 1U;
+        decode_fec_pair_for_branch(rx, branch_index, bit, rx->fec_last_encoded_bit);
+        rx->fec_last_encoded_bit = bit;
+        rx->fec_rxbitstate ^= 1U;
+        rx->fec_pair_count++;
+        return;
+    }
+
     rx->fec_pair_buf[rx->fec_pair_len++] = bit;
     if (rx->fec_pair_len < 2U) {
         return;
     }
 
-    uint8_t pair[2] = {rx->fec_pair_buf[0], rx->fec_pair_buf[1]};
+    const uint8_t previous = rx->fec_pair_buf[0];
+    const uint8_t current = rx->fec_pair_buf[1];
     rx->fec_pair_len = 0;
-    if (rx->inlv_depth != 0U) {
-        const uint8_t tmp_in = pair[0];
-        pair[0] = pair[1];
-        pair[1] = tmp_in;
-        fec_deinterleave_pair(rx, pair);
-        const uint8_t tmp_out = pair[0];
-        pair[0] = pair[1];
-        pair[1] = tmp_out;
-    }
-    uint8_t decoded = 0;
-    if (fec_decode_pair(rx, pair[0], pair[1], &decoded)) {
-        for (int bit = 7; bit >= 0; --bit) {
-            push_payload_bit(rx, (decoded >> bit) & 1U);
-        }
-    }
+    decode_fec_pair_for_branch(rx, 0U, current, previous);
+    rx->fec_pair_count++;
 }
 
 static void push_rtty_bit(psk_rtty_rx_t *rx, int bit)
@@ -921,10 +1062,13 @@ static void psk_channel_rx_feed(psk_rtty_rx_t *rx, const int16_t *samples, size_
             rx->chan_mix_i_acc[car] += sample * rx->carrier_cos[car];
             rx->chan_mix_q_acc[car] -= sample * rx->carrier_sin[car];
 
-            const float phase_inc = (rx->carriers == 1U && rx->psk_family != PSK_FAMILY_8PSK) ?
-                                    (rx->nco_phase_inc + rx->freq_error) : rx->carrier_phase_inc[car];
-            const float rot_cos = cosf(phase_inc);
-            const float rot_sin = sinf(phase_inc);
+            float rot_cos = rx->carrier_rot_cos[car];
+            float rot_sin = rx->carrier_rot_sin[car];
+            if (rx->carriers == 1U && rx->psk_family != PSK_FAMILY_8PSK) {
+                const float phase_inc = rx->nco_phase_inc + rx->freq_error;
+                rot_cos = cosf(phase_inc);
+                rot_sin = sinf(phase_inc);
+            }
             const float next_cos = rx->carrier_cos[car] * rot_cos - rx->carrier_sin[car] * rot_sin;
             const float next_sin = rx->carrier_sin[car] * rot_cos + rx->carrier_cos[car] * rot_sin;
             rx->carrier_cos[car] = next_cos;
