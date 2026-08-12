@@ -26,21 +26,36 @@
 #define PHZ_0_QMAX (7.0f * (float)M_PI / 4.0f)
 #define PHZ_ERR_SIGN_LIMIT 5
 #define SQ_EMIT_STABLE_SYMBOLS 10
+#define SQL_OPEN_HYSTERESIS 5
 #define PSK_FAMILY_BPSK 0U
 #define PSK_FAMILY_QPSK 1U
 #define PSK_FAMILY_8PSK 2U
 #define MAX_PSK_CARRIERS 12U
 #define FEC_PUNCTURE 128U
-#define VIT_MAX_TRACEBACK 64U
+#define VIT_MAX_TRACEBACK 80U
 #define VIT_CHUNKSIZE 8U
+#define VIT_MAX_STATES 32768U
+#if defined(__GNUC__) && !defined(_WIN32)
+#define PSK_DTCM_BSS __attribute__((section(".dtcm_bss")))
+#else
+#define PSK_DTCM_BSS
+#endif
 
 static unsigned char s_varicode_decode[2048];
 static unsigned char s_mfsk_decode[4096];
 static int s_tables_ready;
+static uint8_t s_vit_out0[VIT_MAX_STATES] PSK_DTCM_BSS;
+static uint8_t s_vit_out1[VIT_MAX_STATES] PSK_DTCM_BSS;
+static uint8_t s_vit_table_k;
+static uint32_t s_vit_table_poly1;
+static uint32_t s_vit_table_poly2;
 
 static float circular_distance(float a, float b);
 static psk_rtty_complex_t channel_sync_sample(const psk_rtty_rx_t *rx);
 static void finish_channel_psk_symbol(psk_rtty_rx_t *rx);
+static float nearest_phase_distance(float angle, uint8_t states);
+static void update_quality_squelch(psk_rtty_rx_t *rx, float dist, float step, int valid);
+static void prepare_viterbi_tables(const psk_rtty_rx_t *rx, uint16_t nstates);
 
 static const unsigned char s_rtty_table[0x20][2] = {
     {0, 0}, {'E', '3'}, {'\n', '\n'}, {'A', '-'}, {' ', ' '}, {'S', '\''}, {'I', '8'}, {'U', '7'},
@@ -290,6 +305,7 @@ static void reset_runtime(psk_rtty_rx_t *rx)
     rx->q_acc = 0.0f;
     rx->samples_in_symbol = 0;
     rx->sample_count = 0;
+    rx->afc_enabled = PSKCORE_AFC_ON;
     for (uint8_t car = 0; car < MAX_PSK_CARRIERS; ++car) {
         rx->chan_dec1_state[car] = PSKCORE_DEC4_LPFIR_LENGTH - 1;
         rx->chan_dec2_state[car] = PSKCORE_DEC4_LPFIR_LENGTH - 1;
@@ -300,14 +316,12 @@ static void reset_runtime(psk_rtty_rx_t *rx)
     rx->raw_pk_pos = 5;
     rx->bit_pos = 0;
     rx->warmup_symbols = (int)symbol_rate_for_mode(rx->config.mode);
-    if (rx->config.mode == PSK_RTTY_MODE_BPSK63F ||
-        rx->config.mode == PSK_RTTY_MODE_8PSK125F) {
+    if (rx->config.mode == PSK_RTTY_MODE_BPSK63F) {
         rx->warmup_symbols = 1;
     } else if (rx->config.mode == PSK_RTTY_MODE_8PSK250F) {
         rx->warmup_symbols = 0;
     }
     if (rx->config.mode != PSK_RTTY_MODE_BPSK63F &&
-        rx->config.mode != PSK_RTTY_MODE_8PSK125F &&
         rx->config.mode != PSK_RTTY_MODE_8PSK250F &&
         rx->warmup_symbols < 32) {
         rx->warmup_symbols = 32;
@@ -318,6 +332,7 @@ static void reset_runtime(psk_rtty_rx_t *rx)
     rx->sq_stable_symbols = 0;
     rx->sq_level = 10;
     rx->sq_thresh = 35;
+    rx->squelch_enabled = 1;
     rx->squelch_speed = 75;
     rx->on_count = 0;
     rx->off_count = 0;
@@ -529,20 +544,31 @@ static int branch_metric(uint8_t expected, uint8_t b0, uint8_t b1)
     return metric;
 }
 
+static void prepare_viterbi_tables(const psk_rtty_rx_t *rx, uint16_t nstates)
+{
+    if (s_vit_table_k == rx->fec_k &&
+        s_vit_table_poly1 == rx->fec_poly1 &&
+        s_vit_table_poly2 == rx->fec_poly2) {
+        return;
+    }
+
+    for (uint32_t state = 0; state < nstates; ++state) {
+        const uint32_t s0 = state;
+        const uint32_t s1 = state + nstates;
+        s_vit_out0[state] = (uint8_t)(parity32(s0 & rx->fec_poly1) |
+                                      (parity32(s0 & rx->fec_poly2) << 1U));
+        s_vit_out1[state] = (uint8_t)(parity32(s1 & rx->fec_poly1) |
+                                      (parity32(s1 & rx->fec_poly2) << 1U));
+    }
+
+    s_vit_table_k = rx->fec_k;
+    s_vit_table_poly1 = rx->fec_poly1;
+    s_vit_table_poly2 = rx->fec_poly2;
+}
+
 static int vit_get_decision(const psk_rtty_rx_t *rx, uint8_t step, uint16_t state)
 {
     return (rx->vit_decisions[step][state >> 3U] >> (state & 7U)) & 1U;
-}
-
-static void vit_set_decision(psk_rtty_rx_t *rx, uint8_t step, uint16_t state, int decision)
-{
-    uint8_t *slot = &rx->vit_decisions[step][state >> 3U];
-    const uint8_t mask = (uint8_t)(1U << (state & 7U));
-    if (decision) {
-        *slot |= mask;
-    } else {
-        *slot &= (uint8_t)~mask;
-    }
 }
 
 static uint8_t vit_traceback(psk_rtty_rx_t *rx, uint16_t nstates, const int16_t *metrics)
@@ -582,25 +608,23 @@ static int fec_decode_pair(psk_rtty_rx_t *rx, uint8_t b0, uint8_t b1, uint8_t *d
     int16_t *prev = (rx->vit_step & 1U) ? rx->vit_metrics_b : rx->vit_metrics_a;
     int16_t *curr = (rx->vit_step & 1U) ? rx->vit_metrics_a : rx->vit_metrics_b;
     int16_t max_metric = -32768;
+    int16_t metric_table[4];
 
+    prepare_viterbi_tables(rx, nstates);
+    for (uint8_t expected = 0; expected < 4U; ++expected) {
+        metric_table[expected] = (int16_t)branch_metric(expected, b0, b1);
+    }
     memset(rx->vit_decisions[rx->vit_step], 0, (size_t)nstates >> 3U);
     for (uint16_t state = 0; state < nstates; ++state) {
-        const uint32_t s0 = state;
-        const uint32_t s1 = (uint32_t)state + nstates;
-        const uint16_t p0 = (uint16_t)(s0 >> 1U);
-        const uint16_t p1 = (uint16_t)(s1 >> 1U);
-        const uint8_t o0 = (uint8_t)(parity32(s0 & rx->fec_poly1) |
-                                     (parity32(s0 & rx->fec_poly2) << 1U));
-        const uint8_t o1 = (uint8_t)(parity32(s1 & rx->fec_poly1) |
-                                     (parity32(s1 & rx->fec_poly2) << 1U));
-        const int16_t m0 = (int16_t)(prev[p0] + branch_metric(o0, b0, b1));
-        const int16_t m1 = (int16_t)(prev[p1] + branch_metric(o1, b0, b1));
+        const uint16_t p0 = (uint16_t)(state >> 1U);
+        const uint16_t p1 = (uint16_t)(p0 + (nstates >> 1U));
+        const int16_t m0 = (int16_t)(prev[p0] + metric_table[s_vit_out0[state]]);
+        const int16_t m1 = (int16_t)(prev[p1] + metric_table[s_vit_out1[state]]);
         if (m0 > m1) {
             curr[state] = m0;
-            vit_set_decision(rx, rx->vit_step, state, 0);
         } else {
             curr[state] = m1;
-            vit_set_decision(rx, rx->vit_step, state, 1);
+            rx->vit_decisions[rx->vit_step][state >> 3U] |= (uint8_t)(1U << (state & 7U));
         }
         if (curr[state] > max_metric) {
             max_metric = curr[state];
@@ -763,6 +787,13 @@ static void calc_channel_agc(psk_rtty_rx_t *rx)
 
 static void calc_freq_error(psk_rtty_rx_t *rx, uint8_t car)
 {
+    if (!rx->afc_enabled || rx->carriers != 1U || rx->psk_family == PSK_FAMILY_8PSK) {
+        rx->freq_error = 0.0f;
+        rx->fperr_ave = 0.0f;
+        rx->fferr_ave = 0.0f;
+        return;
+    }
+
     const float p_gn = 0.001f;
     const float i_gn = 1.5e-6f;
     const float p_cgn = 0.0004f;
@@ -890,8 +921,8 @@ static void psk_channel_rx_feed(psk_rtty_rx_t *rx, const int16_t *samples, size_
             rx->chan_mix_i_acc[car] += sample * rx->carrier_cos[car];
             rx->chan_mix_q_acc[car] -= sample * rx->carrier_sin[car];
 
-            const float phase_inc = rx->carrier_phase_inc[car] +
-                                    ((rx->carriers == 1U && rx->psk_family != PSK_FAMILY_8PSK) ? rx->freq_error : 0.0f);
+            const float phase_inc = (rx->carriers == 1U && rx->psk_family != PSK_FAMILY_8PSK) ?
+                                    (rx->nco_phase_inc + rx->freq_error) : rx->carrier_phase_inc[car];
             const float rot_cos = cosf(phase_inc);
             const float rot_sin = sinf(phase_inc);
             const float next_cos = rx->carrier_cos[car] * rot_cos - rx->carrier_sin[car] * rot_sin;
@@ -1023,9 +1054,9 @@ static void process_raw_symbol(psk_rtty_rx_t *rx, uint8_t symbol, uint8_t phase_
         push_fec_encoded_bit(rx, FEC_PUNCTURE);
         return;
     }
-    push_fec_encoded_bit(rx, b0 ? 255U : 0U);
-    push_fec_encoded_bit(rx, b1 ? 255U : 0U);
-    push_fec_encoded_bit(rx, b2 ? 255U : 0U);
+    push_fec_encoded_bit(rx, soft0);
+    push_fec_encoded_bit(rx, soft1);
+    push_fec_encoded_bit(rx, soft2);
 }
 
 static float circular_distance(float a, float b)
@@ -1100,6 +1131,68 @@ static psk_rtty_complex_t channel_sync_sample(const psk_rtty_rx_t *rx)
     return sample;
 }
 
+static float nearest_phase_distance(float angle, uint8_t states)
+{
+    const float step = TWO_PI / (float)states;
+    float nearest = roundf(angle / step) * step;
+    float dist = fabsf(angle - nearest);
+    if (dist > (float)M_PI) {
+        dist = TWO_PI - dist;
+    }
+    return dist;
+}
+
+static void update_quality_squelch(psk_rtty_rx_t *rx, float dist, float step, int valid)
+{
+    const int was_open = rx->sq_open;
+
+    if (!valid || rx->agc_ave <= 1.0f) {
+        rx->dev_ave = 100.0f;
+        rx->sq_level = 0;
+    } else {
+        float dev = 100.0f * dist / (step * 0.5f);
+        if (dev > 100.0f) {
+            dev = 100.0f;
+        }
+        if (dev < rx->dev_ave) {
+            rx->dev_ave = (1.0f - 1.0f / (float)rx->squelch_speed) * rx->dev_ave +
+                          (1.0f / (float)rx->squelch_speed) * dev;
+        } else {
+            const float slow = (float)rx->squelch_speed * 2.0f;
+            rx->dev_ave = (1.0f - 1.0f / slow) * rx->dev_ave + (1.0f / slow) * dev;
+        }
+        rx->sq_level = 100 - (int)(rx->dev_ave + 0.5f);
+        if (rx->sq_level < 0) {
+            rx->sq_level = 0;
+        } else if (rx->sq_level > 100) {
+            rx->sq_level = 100;
+        }
+    }
+
+    if (!rx->squelch_enabled) {
+        rx->sq_open = 1;
+    } else if (was_open) {
+        rx->sq_open = rx->sq_level >= (rx->sq_thresh - SQL_OPEN_HYSTERESIS);
+    } else {
+        rx->sq_open = rx->sq_level >= rx->sq_thresh;
+    }
+
+    if (rx->sq_open) {
+        if (!was_open) {
+            rx->bit_acc = 0;
+            rx->last_bit_zero = 0;
+            rx->sq_stable_symbols = 0;
+        } else if (rx->sq_stable_symbols < SQ_EMIT_STABLE_SYMBOLS) {
+            rx->sq_stable_symbols++;
+        }
+    } else {
+        rx->bit_acc = 0;
+        rx->last_bit_zero = 0;
+        rx->sq_stable_symbols = 0;
+    }
+    rx->sq_was_open = rx->sq_open;
+}
+
 static void finish_channel_psk_symbol(psk_rtty_rx_t *rx)
 {
     uint8_t active = rx->carriers;
@@ -1107,14 +1200,16 @@ static void finish_channel_psk_symbol(psk_rtty_rx_t *rx)
         active = 1U;
     }
 
-    int any_signal = 0;
+    float dist_sum = 0.0f;
+    uint8_t dist_count = 0U;
+    const uint8_t phase_states = rx->psk_family == PSK_FAMILY_QPSK ? 4U :
+                                 (rx->psk_family == PSK_FAMILY_8PSK ? 8U : 2U);
+    const float phase_step = TWO_PI / (float)phase_states;
+
     for (uint8_t car = 0; car < active; ++car) {
         const float i = rx->chan_bit_signal[car].x;
         const float q = rx->chan_bit_signal[car].y;
         const float mag = sqrtf(i * i + q * q);
-        if (mag > 0.05f) {
-            any_signal = 1;
-        }
 
         if (rx->carrier_has_prev[car]) {
             const float pi = rx->carrier_i_prev[car];
@@ -1125,8 +1220,11 @@ static void finish_channel_psk_symbol(psk_rtty_rx_t *rx)
             if (angle < 0.0f) {
                 angle += TWO_PI;
             }
-            const uint8_t phase_idx = phase_index(angle, rx->psk_family == PSK_FAMILY_QPSK ? 4U :
-                                                         (rx->psk_family == PSK_FAMILY_8PSK ? 8U : 2U));
+            if (mag > 0.05f) {
+                dist_sum += nearest_phase_distance(angle, phase_states);
+                dist_count++;
+            }
+            const uint8_t phase_idx = phase_index(angle, phase_states);
             if (rx->psk_family == PSK_FAMILY_QPSK) {
                 process_qpsk_symbol(rx, angle);
             } else {
@@ -1139,12 +1237,10 @@ static void finish_channel_psk_symbol(psk_rtty_rx_t *rx)
         rx->carrier_has_prev[car] = 1U;
     }
 
-    rx->sq_level = (any_signal && rx->agc_ave > 1.0f) ? 99 : 0;
-    rx->sq_open = rx->sq_level >= rx->sq_thresh;
-    if (rx->sq_open && rx->sq_stable_symbols < SQ_EMIT_STABLE_SYMBOLS) {
-        rx->sq_stable_symbols++;
-    }
+    const float avg_dist = dist_count ? (dist_sum / (float)dist_count) : phase_step;
+    update_quality_squelch(rx, avg_dist, phase_step, dist_count > 0U);
 }
+
 
 static void psk_pipeline_rx_feed(psk_rtty_rx_t *rx, const int16_t *samples, size_t count)
 {

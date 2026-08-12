@@ -61,7 +61,9 @@ int main(void)
         .mode = PSK_MODE_BPSK31,
         .sample_rate_hz = AUDIO_INPUT_ACTUAL_DECODE_RATE_HZ,
         .rx_tone_hz = 1500,
-        .squelch = 5,
+        .squelch = 35,
+        .afc_enabled = 1,
+        .squelch_enabled = 1,
     };
     psk_modem_init(&g_modem, &cfg);
 
@@ -175,9 +177,12 @@ int main(void)
             last_diag_tick = now;
             audio_input_debug_snapshot(&audio_debug);
             psk_modem_debug_snapshot(&g_modem, &modem_debug);
-            printf("[diag] mode=%s tone=%dHz blocks=%lu empty=%lu cb=%lu/%lu in=%u lane=%u q=%lu peak=%dHz sq=%d/%d open=%d chars=%lu\r\n",
+            printf("[diag] mode=%s tone=%dHz sel=%dHz afc=%d sql=%d blocks=%lu empty=%lu cb=%lu/%lu in=%u lane=%u q=%lu ov=%lu maxq=%lu peak=%dHz sq=%d/%d open=%d chars=%lu\r\n",
                    psk_modem_mode_name(psk_modem_mode(&g_modem)),
                    modem_debug.tone_hz,
+                   modem_debug.selected_tone_hz,
+                   modem_debug.afc_enabled,
+                   modem_debug.squelch_enabled,
                    audio_debug.read_blocks,
                    audio_debug.empty_reads,
                    audio_debug.half_callbacks,
@@ -185,6 +190,8 @@ int main(void)
                    audio_debug.last_abs_avg,
                    audio_debug.selected_lane,
                    audio_debug.queued_blocks,
+                   audio_debug.overflow_blocks,
+                   audio_debug.max_queued_blocks,
                    spectrum.peak_hz,
                    modem_debug.sq_level,
                    modem_debug.sq_thresh,
@@ -300,6 +307,16 @@ static void poll_serial_commands(char *text, size_t text_len, spectrum_t *spectr
                     display_render(spectrum, psk_modem_mode_info(&g_modem),
                                    psk_modem_tone_hz(&g_modem), text ? text : "");
                 }
+            } else if (ascii_starts_ignore_case(cmd, "AFC")) {
+                char *arg = trim_ascii(cmd + 3);
+                const int enabled = (*arg == '\0') ? 1 : (atoi(arg) != 0);
+                psk_modem_set_afc(&g_modem, enabled);
+                printf("[afc] %s\r\n", enabled ? "on" : "off");
+            } else if (ascii_starts_ignore_case(cmd, "SQL")) {
+                char *arg = trim_ascii(cmd + 3);
+                const int enabled = (*arg == '\0') ? 1 : (atoi(arg) != 0);
+                psk_modem_set_squelch_enabled(&g_modem, enabled);
+                printf("[sql] %s\r\n", enabled ? "on" : "off");
             } else if (ascii_starts_ignore_case(cmd, "TEST")) {
                 char *arg = trim_ascii(cmd + 4);
                 g_serial_test_mode = (atoi(arg) != 0) ? 1U : 0U;
@@ -315,9 +332,14 @@ static void poll_serial_commands(char *text, size_t text_len, spectrum_t *spectr
                 reset_rx_log();
                 printf("[log] rx=%s\r\n", g_rx_log_hex_mode ? "HEX" : "TEXT");
             } else if (ascii_equal_ignore_case(cmd, "STATUS")) {
-                printf("[status] mode=%s tone=%dHz supported=%d log=%s\r\n",
+                psk_modem_debug_t modem_debug;
+                psk_modem_debug_snapshot(&g_modem, &modem_debug);
+                printf("[status] mode=%s tone=%dHz selected=%dHz afc=%d sql=%d supported=%d log=%s\r\n",
                        psk_modem_mode_name(psk_modem_mode(&g_modem)),
-                       psk_modem_tone_hz(&g_modem),
+                       modem_debug.tone_hz,
+                       modem_debug.selected_tone_hz,
+                       modem_debug.afc_enabled,
+                       modem_debug.squelch_enabled,
                        psk_modem_mode_supported(psk_modem_mode(&g_modem)),
                        g_rx_log_hex_mode ? "HEX" : "TEXT");
             } else {

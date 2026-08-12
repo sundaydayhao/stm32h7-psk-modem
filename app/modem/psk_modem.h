@@ -11,6 +11,8 @@ typedef struct {
     int sample_rate_hz;
     int rx_tone_hz;
     int squelch;
+    int afc_enabled;
+    int squelch_enabled;
 } psk_modem_config_t;
 
 typedef struct {
@@ -33,14 +35,19 @@ typedef struct {
     int sq_open;
     int sq_level;
     int sq_thresh;
+    int afc_enabled;
+    int squelch_enabled;
     int stable_symbols;
     int warmup_symbols;
     int tone_hz;
+    int selected_tone_hz;
 } psk_modem_debug_t;
 
 void psk_modem_init(psk_modem_t *m, const psk_modem_config_t *config);
 void psk_modem_set_mode(psk_modem_t *m, psk_mode_t mode);
 void psk_modem_set_tone(psk_modem_t *m, int tone_hz);
+void psk_modem_set_afc(psk_modem_t *m, int enabled);
+void psk_modem_set_squelch_enabled(psk_modem_t *m, int enabled);
 psk_mode_t psk_modem_mode(const psk_modem_t *m);
 int psk_modem_tone_hz(const psk_modem_t *m);
 const char *psk_modem_mode_name(psk_mode_t mode);

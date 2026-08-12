@@ -324,7 +324,7 @@ int main(int argc, char **argv)
     };
     psk_rtty_rx_t rx;
     psk_rtty_rx_init(&rx, &cfg);
-    rx.sq_thresh = 5;
+    rx.sq_thresh = 35;
     const char *warmup = getenv("PSK_WARMUP");
     if (warmup) {
         rx.warmup_symbols = (int)strtol(warmup, NULL, 10);

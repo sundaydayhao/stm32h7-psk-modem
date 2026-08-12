@@ -169,6 +169,14 @@ SECTIONS
     __bss_end__ = _ebss;
   } >RAM_D1
 
+  .dtcm_bss (NOLOAD) :
+  {
+    . = ALIGN(8);
+    *(.dtcm_bss)
+    *(.dtcm_bss*)
+    . = ALIGN(8);
+  } >DTCMRAM
+
   .dtcm_stack (NOLOAD) :
   {
     . = ALIGN(8);

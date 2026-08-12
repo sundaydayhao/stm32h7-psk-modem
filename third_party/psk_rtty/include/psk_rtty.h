@@ -119,7 +119,7 @@ typedef struct {
     uint8_t vit_traceback;
     uint8_t vit_chunksize;
     uint8_t vit_step;
-    uint8_t vit_decisions[64][4096];
+    uint8_t vit_decisions[80][4096];
     int16_t vit_metrics_a[32768];
     int16_t vit_metrics_b[32768];
     uint16_t vit_sequence[256];
@@ -133,6 +133,7 @@ typedef struct {
     int samples_in_symbol;
     int sample_count;
     int afc_timer;
+    int afc_enabled;
     int pk_pos;
     int new_pk_pos;
     int raw_pk_pos;
@@ -144,6 +145,7 @@ typedef struct {
     int sq_stable_symbols;
     int sq_level;
     int sq_thresh;
+    int squelch_enabled;
     int squelch_speed;
     int on_count;
     int off_count;

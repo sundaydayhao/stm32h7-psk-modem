@@ -136,6 +136,90 @@ function Test-DecodedText {
     return $false
 }
 
+function Get-BitCount {
+    param([int]$Value)
+
+    $count = 0
+    $v = $Value -band 0xff
+    while ($v -ne 0) {
+        $v = $v -band ($v - 1)
+        $count++
+    }
+    return $count
+}
+
+function Get-DecodeErrorStats {
+    param(
+        [string]$Expected,
+        [string]$Decoded
+    )
+
+    $expectedClean = ($Expected -replace "\s+", " ").Trim()
+    $decodedClean = ($Decoded -replace "\s+", " ").Trim()
+    $decodedLen = $decodedClean.Length
+    $expectedLen = $expectedClean.Length
+
+    $stats = [ordered]@{
+        DecodedLength = $decodedLen
+        BestOffset = -1
+        ComparedChars = 0
+        CharErrors = 0
+        BitErrors = 0
+        TotalBits = 0
+        CER = 1.0
+        BER = 1.0
+    }
+
+    if ($decodedLen -le 0 -or $expectedLen -le 0) {
+        return [pscustomobject]$stats
+    }
+
+    $bestBitErrors = [int]::MaxValue
+    $bestCharErrors = [int]::MaxValue
+    $bestCompared = 0
+    $bestTotalBits = 0
+    $bestOffset = -1
+
+    for ($offset = 0; $offset -lt $expectedLen; $offset++) {
+        $compared = [math]::Min($decodedLen, $expectedLen - $offset)
+        if ($compared -le 0) {
+            continue
+        }
+
+        $bitErrors = [math]::Abs($decodedLen - $compared) * 8
+        $charErrors = [math]::Abs($decodedLen - $compared)
+        for ($i = 0; $i -lt $compared; $i++) {
+            $expectedByte = [int][byte][char]$expectedClean[$offset + $i]
+            $decodedByte = [int][byte][char]$decodedClean[$i]
+            if ($expectedByte -ne $decodedByte) {
+                $charErrors++
+                $bitErrors += Get-BitCount ($expectedByte -bxor $decodedByte)
+            }
+        }
+
+        $totalBits = [math]::Max($decodedLen, $compared) * 8
+        if ($bitErrors -lt $bestBitErrors -or
+            ($bitErrors -eq $bestBitErrors -and $charErrors -lt $bestCharErrors)) {
+            $bestBitErrors = $bitErrors
+            $bestCharErrors = $charErrors
+            $bestCompared = $compared
+            $bestTotalBits = $totalBits
+            $bestOffset = $offset
+        }
+    }
+
+    if ($bestTotalBits -gt 0) {
+        $stats.BER = [double]$bestBitErrors / [double]$bestTotalBits
+        $stats.CER = [double]$bestCharErrors / [double][math]::Max($decodedLen, $bestCompared)
+    }
+    $stats.BestOffset = $bestOffset
+    $stats.ComparedChars = $bestCompared
+    $stats.CharErrors = $bestCharErrors
+    $stats.BitErrors = $bestBitErrors
+    $stats.TotalBits = $bestTotalBits
+    return [pscustomobject]$stats
+}
+
 function Add-SerialLog {
     param(
         [string]$Path,
@@ -156,6 +240,20 @@ function Send-BoardCommand {
     )
 
     $Serial.Write("$Command`n")
+}
+
+function Send-BoardCommandRepeated {
+    param(
+        [System.IO.Ports.SerialPort]$Serial,
+        [string]$Command,
+        [int]$Count = 2,
+        [int]$DelayMs = 150
+    )
+
+    for ($i = 0; $i -lt $Count; $i++) {
+        Send-BoardCommand -Serial $Serial -Command $Command
+        Start-Sleep -Milliseconds $DelayMs
+    }
 }
 
 if (-not (Test-Path $ExpectedText)) {
@@ -180,11 +278,11 @@ try {
     $serial.Open()
     $serial.DiscardInBuffer()
     if ($SerialTestMode) {
-        Send-BoardCommand -Serial $serial -Command "TEST 1"
+        Send-BoardCommandRepeated -Serial $serial -Command "TEST 1"
         Start-Sleep -Milliseconds 300
         Add-SerialLog -Path $LogPath -Chunk $serial.ReadExisting()
     }
-    Send-BoardCommand -Serial $serial -Command "LOG $RxLogFormat"
+    Send-BoardCommandRepeated -Serial $serial -Command "LOG $RxLogFormat"
     Start-Sleep -Milliseconds 300
     Add-SerialLog -Path $LogPath -Chunk $serial.ReadExisting()
     Send-BoardCommand -Serial $serial -Command "STATUS"
@@ -196,15 +294,16 @@ try {
             continue
         }
 
-        Write-Host ""
-        $serial.DiscardInBuffer()
-        Write-Host "Selecting $mode on board"
-        $modeDeadline = [DateTime]::UtcNow.AddSeconds($ModeWaitSeconds)
-        $nextModeCommand = [DateTime]::MinValue
-        $modeConfirmed = $false
+            Write-Host ""
+            $serial.DiscardInBuffer()
+            Write-Host "Selecting $mode on board"
+            Send-BoardCommandRepeated -Serial $serial -Command "LOG $RxLogFormat"
+            $modeDeadline = [DateTime]::UtcNow.AddSeconds($ModeWaitSeconds)
+            $nextModeCommand = [DateTime]::MinValue
+            $modeConfirmed = $false
         while ([DateTime]::UtcNow -lt $modeDeadline) {
             if ([DateTime]::UtcNow -ge $nextModeCommand) {
-                Send-BoardCommand -Serial $serial -Command "MODE $mode"
+                Send-BoardCommandRepeated -Serial $serial -Command "MODE $mode" -Count 2 -DelayMs 80
                 $nextModeCommand = [DateTime]::UtcNow.AddSeconds(1)
             }
             Start-Sleep -Milliseconds 100
@@ -271,7 +370,7 @@ try {
                 $line = $parts[$lineIndex]
                 if ($RxLogFormat -eq "HEX" -and $line -match "^\[rxhex\]\s+(.*)$") {
                     [void]$decoded.Append((Convert-RxHex $Matches[1]))
-                } elseif ($RxLogFormat -eq "TEXT" -and $line -notmatch "^\[" -and $line.Length -gt 0) {
+                } elseif ($line -notmatch "^\[" -and $line.Length -gt 0) {
                     [void]$decoded.Append((Convert-RxEscapes $line))
                 } elseif ($line -match "^\[$([regex]::Escape($mode))\]\s+(.*)$") {
                     [void]$decoded.Append((Convert-RxEscapes $Matches[1]))
@@ -291,11 +390,14 @@ try {
             $playerProcess = $null
         }
 
+        $stats = Get-DecodeErrorStats -Expected $expected -Decoded $decoded.ToString()
+        $berText = $stats.BER.ToString("P4", [System.Globalization.CultureInfo]::InvariantCulture)
+        $cerText = $stats.CER.ToString("P4", [System.Globalization.CultureInfo]::InvariantCulture)
         if ($passed) {
-            Write-Host "PASS $mode matched board decoded text"
+            Write-Host "PASS $mode matched board decoded text BER=$berText CER=$cerText chars=$($stats.DecodedLength) biterr=$($stats.BitErrors)/$($stats.TotalBits) offset=$($stats.BestOffset)"
             $passCount++
         } else {
-            Write-Host "FAIL $mode no $MatchLength-char expected fragment matched within $limit seconds"
+            Write-Host "FAIL $mode no $MatchLength-char expected fragment matched within $limit seconds BER=$berText CER=$cerText chars=$($stats.DecodedLength) biterr=$($stats.BitErrors)/$($stats.TotalBits) offset=$($stats.BestOffset)"
             $failCount++
         }
     }
