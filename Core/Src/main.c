@@ -100,9 +100,11 @@ int main(void)
                         psk_modem_set_mode(&g_modem, selected);
                         text[0] = '\0';
                         spectrum.peak_hz = 0;
-                        printf("[mode] selected %s%s at %u,%u\r\n",
+                        printf("[mode] selected %s%s raw=%u,%u map=%u,%u\r\n",
                                psk_modem_mode_name(selected),
                                psk_modem_mode_supported(selected) ? "" : " (display only)",
+                               touch_state.raw_x,
+                               touch_state.raw_y,
                                touch_state.x,
                                touch_state.y);
                         display_render(&spectrum, psk_modem_mode_info(&g_modem),

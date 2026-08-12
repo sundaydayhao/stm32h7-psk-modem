@@ -20,6 +20,10 @@
 #define PHZ_180_BMAX ((float)M_PI)
 #define PHZ_0_BMIN ((float)M_PI)
 #define PHZ_0_BMAX TWO_PI
+#define PHZ_180_QMIN ((float)M_PI / 4.0f)
+#define PHZ_180_QMAX (3.0f * (float)M_PI / 4.0f)
+#define PHZ_0_QMIN (5.0f * (float)M_PI / 4.0f)
+#define PHZ_0_QMAX (7.0f * (float)M_PI / 4.0f)
 #define PHZ_ERR_SIGN_LIMIT 5
 #define SQ_EMIT_STABLE_SYMBOLS 10
 #define PSK_FAMILY_BPSK 0U
@@ -34,6 +38,9 @@ static unsigned char s_varicode_decode[2048];
 static unsigned char s_mfsk_decode[4096];
 static int s_tables_ready;
 
+static int qpsk_viterbi_decode_angle(psk_rtty_rx_t *rx, float angle);
+static float circular_distance(float a, float b);
+
 static const unsigned char s_rtty_table[0x20][2] = {
     {0, 0}, {'E', '3'}, {'\n', '\n'}, {'A', '-'}, {' ', ' '}, {'S', '\''}, {'I', '8'}, {'U', '7'},
     {'\r', '\r'}, {'D', '$'}, {'R', '4'}, {'J', 7}, {'N', ','}, {'F', '!'}, {'C', ':'}, {'K', '('},
@@ -44,6 +51,21 @@ static const unsigned char s_rtty_table[0x20][2] = {
 static const uint8_t s_gray_8psk_softbits[8][3] = {
     {25, 0, 25}, {0, 25, 230}, {0, 230, 230}, {25, 255, 25},
     {230, 255, 25}, {255, 230, 230}, {255, 25, 230}, {230, 0, 25},
+};
+
+static const uint8_t s_qpsk_conv_table[32] = {
+    0, 3, 2, 1, 2, 1, 0, 3,
+    1, 2, 3, 0, 3, 0, 1, 2,
+    3, 0, 1, 2, 1, 2, 3, 0,
+    2, 1, 0, 3, 0, 3, 2, 1,
+};
+
+static const float s_qpsk_angle_tbl1[4] = {
+    3.0f * (float)M_PI / 2.0f, 0.0f, (float)M_PI / 2.0f, (float)M_PI,
+};
+
+static const float s_qpsk_angle_tbl2[4] = {
+    3.0f * (float)M_PI / 2.0f, TWO_PI, (float)M_PI / 2.0f, (float)M_PI,
 };
 
 static const unsigned short s_mfsk_varidecode[256] = {
@@ -285,7 +307,14 @@ static void reset_runtime(psk_rtty_rx_t *rx)
     rx->raw_pk_pos = 5;
     rx->bit_pos = 0;
     rx->warmup_symbols = (int)symbol_rate_for_mode(rx->config.mode);
-    if (rx->warmup_symbols < 32) {
+    if (rx->config.mode == PSK_RTTY_MODE_8PSK125F) {
+        rx->warmup_symbols = 0;
+    } else if (rx->config.mode == PSK_RTTY_MODE_8PSK250F) {
+        rx->warmup_symbols = 1;
+    }
+    if (rx->config.mode != PSK_RTTY_MODE_8PSK125F &&
+        rx->config.mode != PSK_RTTY_MODE_8PSK250F &&
+        rx->warmup_symbols < 32) {
         rx->warmup_symbols = 32;
     }
     rx->last_pk_pos = 0;
@@ -336,6 +365,13 @@ static void reset_runtime(psk_rtty_rx_t *rx)
     }
     memset(rx->fec_pending_bits, 0, sizeof(rx->fec_pending_bits));
     memset(rx->fec_pair_buf, 0, sizeof(rx->fec_pair_buf));
+    memset(rx->qpsk_path_metric, 0, sizeof(rx->qpsk_path_metric));
+    memset(rx->qpsk_bit_estimates, 0, sizeof(rx->qpsk_bit_estimates));
+    if (params.family == PSK_FAMILY_QPSK) {
+        for (uint8_t i = 0; i < 21U; ++i) {
+            (void)qpsk_viterbi_decode_angle(rx, 3.0f * (float)M_PI / 2.0f);
+        }
+    }
     memset(rx->inlv_table, FEC_PUNCTURE, sizeof(rx->inlv_table));
     memset(rx->vit_decisions, 0, sizeof(rx->vit_decisions));
     if (params.fec_k) {
@@ -995,6 +1031,142 @@ static void decode_bpsk_symbol(psk_rtty_rx_t *rx, psk_rtty_complex_t sample)
     push_varicode_bit(rx, bit);
 }
 
+static void calc_quality_qpsk(psk_rtty_rx_t *rx, float angle)
+{
+    const float phzderived_gn = 1.0f / 0.2f;
+    float temp;
+    const int was_open = rx->sq_open;
+
+    if (angle >= PHZ_180_QMIN && angle <= PHZ_180_QMAX) {
+        temp = angle - ((float)M_PI / 2.0f);
+        rx->q_freq_error = temp;
+        temp = 280.0f * fabsf(temp);
+        if (temp < rx->dev_ave) {
+            rx->dev_ave = (1.0f - 1.0f / rx->squelch_speed) * rx->dev_ave + (1.0f / rx->squelch_speed) * temp;
+        } else {
+            rx->dev_ave = (1.0f - 1.0f / (rx->squelch_speed * 2.0f)) * rx->dev_ave +
+                          (1.0f / (rx->squelch_speed * 2.0f)) * temp;
+        }
+        if (rx->on_count > 20) {
+            rx->dev_ave = 25.0f;
+        } else {
+            rx->on_count++;
+        }
+        rx->off_count = 0;
+    } else if (angle >= PHZ_0_QMIN && angle <= PHZ_0_QMAX) {
+        temp = angle - (3.0f * (float)M_PI / 2.0f);
+        rx->q_freq_error = temp;
+        temp = 280.0f * fabsf(temp);
+        if (temp < rx->dev_ave) {
+            rx->dev_ave = (1.0f - 1.0f / rx->squelch_speed) * rx->dev_ave + (1.0f / rx->squelch_speed) * temp;
+        } else {
+            rx->dev_ave = (1.0f - 1.0f / (rx->squelch_speed * 2.0f)) * rx->dev_ave +
+                          (1.0f / (rx->squelch_speed * 2.0f)) * temp;
+        }
+        rx->off_count++;
+        rx->on_count = 0;
+    } else {
+        rx->q_freq_error = 0.0f;
+    }
+
+    if (rx->agc_ave > 10.0f) {
+        rx->sq_level = 100 - (int)rx->dev_ave;
+        rx->sq_open = rx->sq_level >= rx->sq_thresh;
+    } else {
+        rx->sq_level = 0;
+        rx->sq_open = 0;
+    }
+    if (rx->sq_open) {
+        if (!was_open) {
+            rx->bit_acc = 0;
+            rx->last_bit_zero = 0;
+            rx->sq_stable_symbols = 0;
+        } else if (rx->sq_stable_symbols < SQ_EMIT_STABLE_SYMBOLS) {
+            rx->sq_stable_symbols++;
+        }
+    } else {
+        rx->bit_acc = 0;
+        rx->last_bit_zero = 0;
+        rx->sq_stable_symbols = 0;
+    }
+    rx->sq_was_open = rx->sq_open;
+
+    if (rx->q_freq_error > 0.6f) {
+        rx->q_freq_error = 0.6f;
+    } else if (rx->q_freq_error < -0.6f) {
+        rx->q_freq_error = -0.6f;
+    }
+    rx->fperr_ave = (1.0f - 1.0f / rx->nlp_k) * rx->fperr_ave +
+                    (phzderived_gn / rx->nlp_k) * rx->q_freq_error;
+}
+
+static int qpsk_viterbi_decode_angle(psk_rtty_rx_t *rx, float angle)
+{
+    const float *angle_table = angle >= (float)M_PI ? s_qpsk_angle_tbl2 : s_qpsk_angle_tbl1;
+    float pathdist[32];
+    uint32_t bitestimates[32];
+    float min_metric = 1.0e30f;
+
+    for (uint8_t i = 0; i < 32U; ++i) {
+        const uint8_t prev = i >> 1U;
+        float dist = fabsf(angle - angle_table[s_qpsk_conv_table[i]]);
+        pathdist[i] = rx->qpsk_path_metric[prev] + dist;
+        if (pathdist[i] < min_metric) {
+            min_metric = pathdist[i];
+        }
+        bitestimates[i] = (rx->qpsk_bit_estimates[prev] << 1U) | (i & 1U);
+    }
+
+    for (uint8_t i = 0; i < 16U; ++i) {
+        if (pathdist[i] < pathdist[16U + i]) {
+            rx->qpsk_path_metric[i] = pathdist[i] - min_metric;
+            rx->qpsk_bit_estimates[i] = bitestimates[i];
+        } else {
+            rx->qpsk_path_metric[i] = pathdist[16U + i] - min_metric;
+            rx->qpsk_bit_estimates[i] = bitestimates[16U + i];
+        }
+    }
+
+    uint8_t ones = 0;
+    for (uint8_t i = 0; i < 16U; ++i) {
+        if (rx->qpsk_bit_estimates[i] & (1UL << 20U)) {
+            ones++;
+        }
+    }
+    return ones > 8U;
+}
+
+static void decode_qpsk_symbol(psk_rtty_rx_t *rx, psk_rtty_complex_t sample)
+{
+    rx->i1 = rx->i0;
+    rx->q1 = rx->q0;
+    rx->i0 = sample.x;
+    rx->q0 = sample.y;
+
+    psk_rtty_complex_t vect = {
+        .x = rx->i1 * rx->q0 - rx->i0 * rx->q1,
+        .y = rx->i1 * rx->i0 + rx->q1 * rx->q0,
+    };
+
+    float angle = (float)M_PI - atan2f(vect.y, vect.x);
+    if (angle < 0.0f) {
+        angle += TWO_PI;
+    } else if (angle >= TWO_PI) {
+        angle -= TWO_PI;
+    }
+    calc_quality_qpsk(rx, angle);
+    const int bit = qpsk_viterbi_decode_angle(rx, angle);
+
+    rx->debug_symbols++;
+    if (rx->warmup_symbols > 0) {
+        rx->warmup_symbols--;
+        return;
+    }
+    rx->debug_bits++;
+    bit ? rx->debug_ones++ : rx->debug_zeros++;
+    push_varicode_bit(rx, bit);
+}
+
 static void pskcore_rx_feed(psk_rtty_rx_t *rx, const int16_t *samples, size_t count)
 {
     if (rx->afc_timer > 0 && --rx->afc_timer <= 0) {
@@ -1006,7 +1178,8 @@ static void pskcore_rx_feed(psk_rtty_rx_t *rx, const int16_t *samples, size_t co
         }
     }
 
-    const int second_decim = rx->config.mode == PSK_RTTY_MODE_PSK63 ? 8 : 16;
+    const int second_decim = (rx->config.mode == PSK_RTTY_MODE_PSK63 ||
+                              rx->config.mode == PSK_RTTY_MODE_QPSK63) ? 8 : 16;
     float rot_inc = rx->nco_phase_inc + rx->freq_error;
     float rot_cos = cosf(rot_inc);
     float rot_sin = sinf(rot_inc);
@@ -1041,7 +1214,11 @@ static void pskcore_rx_feed(psk_rtty_rx_t *rx, const int16_t *samples, size_t co
                 rot_cos = cosf(rot_inc);
                 rot_sin = sinf(rot_inc);
                 if (symbol_sync(rx, rx->bit_signal)) {
-                    decode_bpsk_symbol(rx, rx->bit_signal);
+                    if (rx->psk_family == PSK_FAMILY_QPSK) {
+                        decode_qpsk_symbol(rx, rx->bit_signal);
+                    } else {
+                        decode_bpsk_symbol(rx, rx->bit_signal);
+                    }
                 }
             }
 
@@ -1169,12 +1346,73 @@ static void process_raw_symbol(psk_rtty_rx_t *rx, uint8_t symbol, uint8_t phase_
         return;
     }
     const uint8_t soft_idx = (uint8_t)((8U - phase_idx) & 7U);
-    push_fec_encoded_bit(rx, s_gray_8psk_softbits[soft_idx][2]);
-    push_fec_encoded_bit(rx, s_gray_8psk_softbits[soft_idx][1]);
-    push_fec_encoded_bit(rx, s_gray_8psk_softbits[soft_idx][0]);
+    const uint8_t soft0 = s_gray_8psk_softbits[soft_idx][2];
+    const uint8_t soft1 = s_gray_8psk_softbits[soft_idx][1];
+    const uint8_t soft2 = s_gray_8psk_softbits[soft_idx][0];
     if (rx->fec_punctured) {
+        push_fec_encoded_bit(rx, soft0);
+        push_fec_encoded_bit(rx, soft1);
+        push_fec_encoded_bit(rx, soft2);
         push_fec_encoded_bit(rx, FEC_PUNCTURE);
+        return;
     }
+    push_fec_encoded_bit(rx, b0 ? 255U : 0U);
+    push_fec_encoded_bit(rx, b1 ? 255U : 0U);
+    push_fec_encoded_bit(rx, b2 ? 255U : 0U);
+}
+
+static float circular_distance(float a, float b)
+{
+    float d = fabsf(a - b);
+    if (d > (float)M_PI) {
+        d = TWO_PI - d;
+    }
+    return d;
+}
+
+static uint8_t qpsk_soft_bit(float angle, uint8_t bit_mask)
+{
+    static const uint8_t map[4] = {2U, 3U, 0U, 1U};
+    const float step = (float)M_PI / 2.0f;
+    float best0 = TWO_PI;
+    float best1 = TWO_PI;
+
+    for (uint8_t idx = 0; idx < 4U; ++idx) {
+        const float ideal = step * (float)idx;
+        const float dist = circular_distance(angle, ideal);
+        if (map[idx] & bit_mask) {
+            if (dist < best1) {
+                best1 = dist;
+            }
+        } else if (dist < best0) {
+            best0 = dist;
+        }
+    }
+
+    float soft = 128.0f + 127.0f * ((best0 - best1) / step);
+    if (soft < 0.0f) {
+        soft = 0.0f;
+    } else if (soft > 255.0f) {
+        soft = 255.0f;
+    }
+    return (uint8_t)(soft + 0.5f);
+}
+
+static void process_qpsk_symbol(psk_rtty_rx_t *rx, float angle)
+{
+    rx->debug_symbols++;
+    if (rx->warmup_symbols > 0) {
+        rx->warmup_symbols--;
+        return;
+    }
+
+    const uint8_t b0 = qpsk_soft_bit(angle, 1U);
+    const uint8_t b1 = qpsk_soft_bit(angle, 2U);
+    rx->debug_bits += 2U;
+    rx->debug_ones += (b0 >= 128U) + (b1 >= 128U);
+    rx->debug_zeros += (b0 < 128U) + (b1 < 128U);
+    push_fec_encoded_bit(rx, b0);
+    push_fec_encoded_bit(rx, b1);
 }
 
 static void finish_generic_psk_symbol(psk_rtty_rx_t *rx)
@@ -1204,7 +1442,11 @@ static void finish_generic_psk_symbol(psk_rtty_rx_t *rx)
             }
             const uint8_t phase_idx = phase_index(angle, rx->psk_family == PSK_FAMILY_QPSK ? 4U :
                                                          (rx->psk_family == PSK_FAMILY_8PSK ? 8U : 2U));
-            process_raw_symbol(rx, inverse_psk_symbol(rx, angle, dot), phase_idx);
+            if (rx->psk_family == PSK_FAMILY_QPSK) {
+                process_qpsk_symbol(rx, angle);
+            } else {
+                process_raw_symbol(rx, inverse_psk_symbol(rx, angle, dot), phase_idx);
+            }
         }
         rx->carrier_i_prev[car] = i;
         rx->carrier_q_prev[car] = q;
@@ -1223,13 +1465,21 @@ static void finish_generic_psk_symbol(psk_rtty_rx_t *rx)
 
 static void generic_psk_rx_feed(psk_rtty_rx_t *rx, const int16_t *samples, size_t count)
 {
-    const int window_start = (int)(rx->symbol_period_samples * (rx->carriers > 1U ? 0.45f :
+    const int window_start = (int)(rx->symbol_period_samples * (rx->carriers > 1U ? 0.40f :
                                                                (rx->config.mode == PSK_RTTY_MODE_QPSK31_USB ? 0.25f : 0.62f)));
-    const int window_end = (int)(rx->symbol_period_samples * (rx->carriers > 1U ? 0.95f :
+    const int window_end = (int)(rx->symbol_period_samples * (rx->carriers > 1U ? 1.00f :
                                                              (rx->config.mode == PSK_RTTY_MODE_QPSK31_USB ? 0.75f : 0.96f)));
-
+    const float input_open_level = 2000.0f;
     for (size_t n = 0; n < count; ++n) {
         const float s = (float)samples[n];
+        if (!rx->sq_was_open && fabsf(s) >= input_open_level) {
+            for (uint8_t car = 0; car < rx->carriers && car < MAX_PSK_CARRIERS; ++car) {
+                const float phase = fmodf(rx->carrier_phase_inc[car] * (float)rx->sample_count, TWO_PI);
+                rx->carrier_cos[car] = cosf(phase);
+                rx->carrier_sin[car] = sinf(phase);
+            }
+            rx->sq_was_open = 1;
+        }
         const int pos = rx->bit_pos;
         for (uint8_t car = 0; car < rx->carriers && car < MAX_PSK_CARRIERS; ++car) {
             if (pos >= window_start && pos < window_end) {
@@ -1268,15 +1518,17 @@ static void generic_psk_rx_feed(psk_rtty_rx_t *rx, const int16_t *samples, size_
 
 void psk_rtty_rx_feed(psk_rtty_rx_t *rx, const int16_t *samples, size_t count)
 {
-    if (rx->config.mode == PSK_RTTY_MODE_QPSK31_USB ||
-        rx->config.mode == PSK_RTTY_MODE_QPSK31_LSB ||
-        rx->config.mode >= PSK_RTTY_MODE_BPSK63F) {
-        generic_psk_rx_feed(rx, samples, count);
+    if (rx->config.mode == PSK_RTTY_MODE_BPSK31 ||
+        rx->config.mode == PSK_RTTY_MODE_PSK63) {
+        pskcore_rx_feed(rx, samples, count);
         return;
     }
 
-    if (rx->config.mode == PSK_RTTY_MODE_BPSK31 || rx->config.mode == PSK_RTTY_MODE_PSK63) {
-        pskcore_rx_feed(rx, samples, count);
+    if (rx->config.mode == PSK_RTTY_MODE_QPSK31_USB ||
+        rx->config.mode == PSK_RTTY_MODE_QPSK31_LSB ||
+        rx->config.mode == PSK_RTTY_MODE_QPSK63 ||
+        rx->config.mode >= PSK_RTTY_MODE_BPSK63F) {
+        generic_psk_rx_feed(rx, samples, count);
         return;
     }
 

@@ -102,7 +102,7 @@ typedef struct {
     uint8_t fec_enabled;
     uint8_t fec_punctured;
     uint8_t use_mfsk_varicode;
-    uint8_t fec_pair_count;
+    uint32_t fec_pair_count;
     uint8_t fec_rxbitstate;
     uint8_t fec_bit_phase;
     uint8_t fec_pending_bits[2];
@@ -116,6 +116,8 @@ typedef struct {
     int16_t vit_metrics_a[32768];
     int16_t vit_metrics_b[32768];
     uint16_t vit_sequence[256];
+    float qpsk_path_metric[16];
+    uint32_t qpsk_bit_estimates[16];
     uint16_t fec_state;
     uint32_t fec_mask;
     uint32_t fec_poly1;

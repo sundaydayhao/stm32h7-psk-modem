@@ -108,8 +108,8 @@ HAL_StatusTypeDef audio_input_start(void)
     }
 
     wm8978_cfg_audio_if();
-    wm8978_cfg_audio_path(MIC_LEFT_ON | MIC_RIGHT_ON | LINE_ON | ADC_ON, OUT_PATH_OFF);
-    wm8978_set_mic_gain(48U);
+    wm8978_cfg_audio_path(LINE_ON | ADC_ON, OUT_PATH_OFF);
+    wm8978_set_mic_gain(0U);
     wm8978_set_line_gain(6U);
 
     if (configure_i2s() != HAL_OK) {
@@ -514,6 +514,7 @@ static void process_dma_half(uint32_t offset, uint8_t is_full)
     int32_t sum_abs[2] = {0, 0};
     int16_t min_raw[2] = {INT16_MAX, INT16_MAX};
     int16_t max_raw[2] = {INT16_MIN, INT16_MIN};
+    int16_t lane_block[2][AUDIO_INPUT_DECODE_BLOCK_SAMPLES];
     int16_t block[AUDIO_INPUT_DECODE_BLOCK_SAMPLES];
 
     invalidate_dma_cache(&s_dma[offset], AUDIO_DMA_HALF_COUNT * sizeof(s_dma[0]));
@@ -544,11 +545,12 @@ static void process_dma_half(uint32_t offset, uint8_t is_full)
             }
         }
 
-        const uint8_t lane = (sum_abs[1] > sum_abs[0]) ? 1U : 0U;
-        block[i] = (int16_t)(acc[lane] / (int32_t)AUDIO_INPUT_DECIMATION);
+        lane_block[0][i] = (int16_t)(acc[0] / (int32_t)AUDIO_INPUT_DECIMATION);
+        lane_block[1][i] = (int16_t)(acc[1] / (int32_t)AUDIO_INPUT_DECIMATION);
     }
 
     const uint8_t selected_lane = (sum_abs[1] > sum_abs[0]) ? 1U : 0U;
+    memcpy(block, lane_block[selected_lane], sizeof(block));
     int16_t last_min = INT16_MAX;
     int16_t last_max = INT16_MIN;
     uint32_t last_abs = 0U;

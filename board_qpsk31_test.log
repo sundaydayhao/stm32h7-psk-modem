@@ -1,0 +1,277 @@
+# board WAV regression 2026-08-11T23:18:46.7657930+08:00
+[diag] mode=QPSK31 tone=1500Hz blocks=367 empty=19626514 cb=186/185 in=213 lane=1 q=0 peak=16Hz sq=0/5 open=0 chars=0
+[diag] mode=QPSK31 tone=1500Hz blocks=494 empty=26474812 cb=249/249 in=215 lane=1 q=0 peak=16Hz sq=0/5 open=0 chars=0
+[QPSK31] >a
+[QPSK31] e
+[QPSK31] r
+[QPSK31] te
+[QPSK31]  
+[diag] mode=QPSK31 tone=1500Hz blocks=621 empty=33304526 cb=313/312 in=3443 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=7
+[QPSK31] \xAB 
+[QPSK31] e 
+[QPSK31] n
+[QPSK31]  n
+[QPSK31] \xA1
+[QPSK31]  
+[diag] mode=QPSK31 tone=1500Hz blocks=748 empty=40125883 cb=376/376 in=3680 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=16
+[QPSK31] n
+[QPSK31] \x98
+[QPSK31] 6
+[QPSK31]  
+[QPSK31] e
+[QPSK31] \r
+[QPSK31] m
+[diag] mode=QPSK31 tone=1500Hz blocks=875 empty=46942632 cb=440/439 in=3206 lane=1 q=0 peak=1488Hz sq=99/5 open=1 chars=23
+[QPSK31] n
+[QPSK31] eo
+[QPSK31]  
+[QPSK31] :
+[QPSK31] t
+[QPSK31] \x15
+[QPSK31] m
+[diag] mode=QPSK31 tone=1500Hz blocks=1002 empty=53754399 cb=503/503 in=3002 lane=1 q=0 peak=1456Hz sq=99/5 open=1 chars=31
+[QPSK31] t
+[QPSK31] -
+[QPSK31] l
+[QPSK31] e
+[QPSK31] ne
+[QPSK31] \r
+[diag] mode=QPSK31 tone=1500Hz blocks=1130 empty=60566362 cb=567/567 in=2335 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=38
+[QPSK31] \x01 
+[QPSK31] \n
+[QPSK31] t
+[QPSK31] \xCE
+[diag] mode=QPSK31 tone=1500Hz blocks=1257 empty=67380809 cb=631/630 in=3017 lane=1 q=0 peak=1488Hz sq=99/5 open=1 chars=43
+[QPSK31] v
+[QPSK31] lt
+[QPSK31] e 
+[QPSK31] l
+[QPSK31] o
+[QPSK31] a
+[QPSK31] g
+[QPSK31] l
+[diag] mode=QPSK31 tone=1500Hz blocks=1384 empty=74177612 cb=694/694 in=3188 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=53
+[QPSK31] m
+[QPSK31] o 
+[QPSK31] \xD6
+[QPSK31] l
+[QPSK31]   
+[diag] mode=QPSK31 tone=1500Hz blocks=1511 empty=80984718 cb=758/757 in=1389 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=60
+[QPSK31]   
+[QPSK31] Pi
+[QPSK31] t
+[QPSK31] F
+[diag] mode=QPSK31 tone=1500Hz blocks=1638 empty=87792816 cb=821/821 in=3298 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=66
+[QPSK31] $
+[QPSK31] a
+[QPSK31] e
+[QPSK31] oi
+[QPSK31] \xA1 
+[QPSK31] o
+[diag] mode=QPSK31 tone=1500Hz blocks=1765 empty=94590163 cb=885/884 in=3686 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=74
+[QPSK31] :
+[QPSK31] =
+[QPSK31] A
+[QPSK31] t
+[QPSK31] o
+[QPSK31] V
+[diag] mode=QPSK31 tone=1500Hz blocks=1893 empty=101383933 cb=949/948 in=3703 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=80
+[QPSK31] w
+[QPSK31] ea
+[QPSK31] \xE5 
+[QPSK31] \xA3
+[QPSK31] v
+[diag] mode=QPSK31 tone=1500Hz blocks=2020 empty=108177851 cb=1012/1012 in=2103 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=87
+[QPSK31] h
+[QPSK31] E
+[QPSK31] e 
+[QPSK31] \xD1
+[QPSK31]  o
+[diag] mode=QPSK31 tone=1500Hz blocks=2147 empty=114965560 cb=1076/1075 in=3670 lane=1 q=0 peak=1488Hz sq=99/5 open=1 chars=94
+[QPSK31] #
+[QPSK31] \xA9
+[QPSK31] it
+[QPSK31] e
+[QPSK31] a 
+[QPSK31] t
+[diag] mode=QPSK31 tone=1500Hz blocks=2274 empty=121747618 cb=1139/1139 in=2844 lane=1 q=0 peak=1488Hz sq=99/5 open=1 chars=102
+[QPSK31] \xBB
+[QPSK31] oi
+[QPSK31] i
+[QPSK31] ee
+[QPSK31] \x99 
+[QPSK31] \n
+[diag] mode=QPSK31 tone=1500Hz blocks=2401 empty=128523850 cb=1203/1202 in=3549 lane=1 q=0 peak=1488Hz sq=99/5 open=1 chars=111
+[QPSK31] \xD1e
+[QPSK31] et
+[QPSK31] \xDB
+[QPSK31] a
+[QPSK31] v
+[diag] mode=QPSK31 tone=1500Hz blocks=2528 empty=135301437 cb=1266/1266 in=3678 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=118
+[QPSK31] \x81
+[QPSK31] i
+[QPSK31] E
+[QPSK31] n
+[QPSK31] m
+[QPSK31] i
+[diag] mode=QPSK31 tone=1500Hz blocks=2655 empty=142072413 cb=1330/1329 in=3693 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=124
+[QPSK31] e
+[QPSK31] v
+[QPSK31] \xD8
+[QPSK31] w
+[QPSK31] \xA9
+[QPSK31] e
+[diag] mode=QPSK31 tone=1500Hz blocks=2783 empty=148837400 cb=1394/1393 in=3682 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=130
+[QPSK31] v
+[QPSK31] r
+[QPSK31]  
+[QPSK31] e
+[QPSK31] \xAF
+[QPSK31] a
+[QPSK31] M
+[diag] mode=QPSK31 tone=1500Hz blocks=2910 empty=155599942 cb=1457/1457 in=3330 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=137
+[QPSK31] we
+[QPSK31]  e
+[QPSK31]  l
+[QPSK31] l
+[QPSK31] n
+[QPSK31]  
+[QPSK31] G
+[diag] mode=QPSK31 tone=1500Hz blocks=3037 empty=162356284 cb=1521/1520 in=2888 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=147
+[QPSK31] ee
+[QPSK31] \x02
+[QPSK31] v
+[QPSK31] e
+[diag] mode=QPSK31 tone=1500Hz blocks=3164 empty=169123779 cb=1584/1584 in=3458 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=152
+[QPSK31] \x02a
+[QPSK31] a
+[QPSK31] e
+[QPSK31] l
+[QPSK31] =
+[QPSK31] i
+[QPSK31] eo
+[QPSK31]  a
+[diag] mode=QPSK31 tone=1500Hz blocks=3291 empty=175867417 cb=1648/1647 in=2844 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=163
+[QPSK31] e
+[QPSK31] \xAE
+[QPSK31] a 
+[QPSK31]  
+[QPSK31] \xAE
+[QPSK31] r
+[diag] mode=QPSK31 tone=1500Hz blocks=3418 empty=182619482 cb=1711/1711 in=3065 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=170
+[QPSK31] le
+[QPSK31] \xA1
+[QPSK31] T
+[QPSK31] $
+[QPSK31] e
+[QPSK31] \x9C
+[diag] mode=QPSK31 tone=1500Hz blocks=3546 empty=189366582 cb=1775/1775 in=3680 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=177
+[QPSK31] t
+[QPSK31]  
+[QPSK31] \x98e
+[QPSK31] e
+[QPSK31] e
+[QPSK31] v
+[QPSK31] W
+[diag] mode=QPSK31 tone=1500Hz blocks=3673 empty=196110734 cb=1839/1838 in=3698 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=185
+[QPSK31] o
+[QPSK31] Q
+[QPSK31] o
+[QPSK31] v
+[QPSK31] m
+[diag] mode=QPSK31 tone=1500Hz blocks=3800 empty=202867464 cb=1902/1902 in=1652 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=190
+[QPSK31] m  
+[QPSK31] v
+[QPSK31] o
+[QPSK31] m
+[QPSK31] g
+[QPSK31] l
+[diag] mode=QPSK31 tone=1500Hz blocks=3927 empty=209620785 cb=1966/1965 in=3641 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=198
+[QPSK31] t
+[QPSK31] p 
+[QPSK31] \n
+[QPSK31]  
+[QPSK31] 5t
+[QPSK31] v
+[diag] mode=QPSK31 tone=1500Hz blocks=4054 empty=216387311 cb=2029/2029 in=2843 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=206
+[QPSK31] t
+[QPSK31] v
+[QPSK31] e
+[QPSK31] \x1B
+[QPSK31] \xA1
+[QPSK31] ]
+[diag] mode=QPSK31 tone=1500Hz blocks=4181 empty=223151938 cb=2093/2092 in=3409 lane=1 q=0 peak=1520Hz sq=99/5 open=1 chars=212
+[QPSK31] $ 
+[QPSK31] \n
+[QPSK31] e
+[QPSK31] \x91
+[QPSK31] ne
+[diag] mode=QPSK31 tone=1500Hz blocks=4307 empty=229946397 cb=2157/2156 in=3316 lane=1 q=2 peak=1520Hz sq=99/5 open=1 chars=219
+[QPSK31] \x97
+[QPSK31] Q
+[QPSK31] g
+[QPSK31] o
+[QPSK31] t
+[QPSK31] l
+[diag] mode=QPSK31 tone=1500Hz blocks=4435 empty=236774541 cb=2221/2220 in=3694 lane=1 q=2 peak=1488Hz sq=99/5 open=1 chars=225
+[QPSK31]  n
+[QPSK31] l
+[QPSK31] J
+[QPSK31] \xDBe
+[QPSK31] a
+[QPSK31] t
+[diag] mode=QPSK31 tone=1500Hz blocks=4563 empty=243592639 cb=2285/2284 in=3680 lane=1 q=2 peak=1520Hz sq=99/5 open=1 chars=233
+[QPSK31] e
+[QPSK31] \r
+[QPSK31] o
+[QPSK31] -e
+[QPSK31]  
+[QPSK31] l
+[QPSK31] l
+[diag] mode=QPSK31 tone=1500Hz blocks=4691 empty=250407334 cb=2349/2348 in=2854 lane=1 q=2 peak=1520Hz sq=99/5 open=1 chars=241
+[QPSK31] oe
+[QPSK31] ,
+[QPSK31] \xAA
+[QPSK31] t
+[QPSK31] 8
+[QPSK31] h
+[QPSK31] o
+[diag] mode=QPSK31 tone=1500Hz blocks=4819 empty=257221236 cb=2413/2412 in=3669 lane=1 q=2 peak=1520Hz sq=99/5 open=1 chars=249
+[QPSK31] o
+[QPSK31] o
+[QPSK31] 4
+[QPSK31] D
+[QPSK31] e
+[QPSK31] l
+[diag] mode=QPSK31 tone=1500Hz blocks=4947 empty=264028421 cb=2477/2476 in=3687 lane=1 q=2 peak=1520Hz sq=99/5 open=1 chars=255
+[QPSK31] t
+[QPSK31] i
+[QPSK31] F
+[QPSK31]  
+[QPSK31] l 
+[QPSK31] t
+[QPSK31] L
+[diag] mode=QPSK31 tone=1500Hz blocks=5075 empty=270850509 cb=2541/2540 in=1973 lane=1 q=2 peak=1520Hz sq=99/5 open=1 chars=263
+[QPSK31] eo
+[QPSK31] -
+[QPSK31]  
+[QPSK31] e
+[QPSK31]  e
+[QPSK31] )
+[QPSK31] s
+[diag] mode=QPSK31 tone=1500Hz blocks=5203 empty=277669267 cb=2605/2604 in=3225 lane=1 q=2 peak=1520Hz sq=99/5 open=1 chars=272
+[QPSK31] P
+[QPSK31] -
+[QPSK31] l
+[QPSK31] e
+[QPSK31]  
+[QPSK31] \x15
+[diag] mode=QPSK31 tone=1500Hz blocks=5331 empty=284487526 cb=2669/2668 in=3402 lane=1 q=2 peak=1520Hz sq=99/5 open=1 chars=278
+[QPSK31] \xA6
+[QPSK31] oe
+[QPSK31] oe
+[QPSK31] e
+[QPSK31] -
+[QPSK31] \xDD
+[diag] mode=QPSK31 tone=1500Hz blocks=5459 empty=291300568 cb=2733/2732 in=3615 lane=1 q=2 peak=1520Hz sq=99/5 open=1 chars=286
+[QPSK31] l 

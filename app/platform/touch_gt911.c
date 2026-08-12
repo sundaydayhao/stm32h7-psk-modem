@@ -9,7 +9,7 @@
 
 #define GT911_REG_ID 0x8140U
 #define GT911_REG_STATUS 0x814EU
-#define GT911_REG_POINT1 0x8150U
+#define GT911_REG_POINT1 0x814FU
 
 #ifndef TOUCH_GT911_I2C_TIMING
 #define TOUCH_GT911_I2C_TIMING 0x40604E73U
@@ -107,8 +107,10 @@ HAL_StatusTypeDef touch_gt911_read(touch_gt911_state_t *state)
     if (points > 0U) {
         uint8_t point[8] = {0};
         if (read_reg(GT911_REG_POINT1, point, sizeof(point)) == HAL_OK) {
-            uint16_t raw_x = (uint16_t)point[2] | ((uint16_t)point[3] << 8);
-            uint16_t raw_y = (uint16_t)point[4] | ((uint16_t)point[5] << 8);
+            const uint16_t panel_x = (uint16_t)point[1] | ((uint16_t)point[2] << 8);
+            const uint16_t panel_y = (uint16_t)point[3] | ((uint16_t)point[4] << 8);
+            uint16_t raw_x = panel_y;
+            uint16_t raw_y = panel_x;
             s_state.raw_x = raw_x;
             s_state.raw_y = raw_y;
             map_point(raw_x, raw_y, &s_state.x, &s_state.y);
@@ -244,17 +246,17 @@ static HAL_StatusTypeDef probe_address(uint8_t address, uint8_t *id)
 
 static void map_point(uint16_t raw_x, uint16_t raw_y, uint16_t *x_out, uint16_t *y_out)
 {
-    uint16_t x = (uint16_t)(raw_y + TOUCH_GT911_X_OFFSET);
-    uint16_t y = raw_x;
+    uint32_t x = raw_y;
+    uint32_t y = raw_x;
 
 #if TOUCH_GT911_SWAP_XY
-    const uint16_t t = x;
+    const uint32_t t = x;
     x = y;
     y = t;
 #endif
 #if TOUCH_GT911_INVERT_X
     if (x < FIRE_LCD_WIDTH) {
-        x = (uint16_t)(FIRE_LCD_WIDTH - 1U - x);
+        x = FIRE_LCD_WIDTH - 1U - x;
     }
 #endif
     if (x >= FIRE_LCD_WIDTH) {
@@ -262,12 +264,12 @@ static void map_point(uint16_t raw_x, uint16_t raw_y, uint16_t *x_out, uint16_t 
     }
 #if TOUCH_GT911_INVERT_Y
     if (y < FIRE_LCD_HEIGHT) {
-        y = (uint16_t)(FIRE_LCD_HEIGHT - 1U - y);
+        y = FIRE_LCD_HEIGHT - 1U - y;
     }
 #endif
     if (y >= FIRE_LCD_HEIGHT) {
         y = FIRE_LCD_HEIGHT - 1U;
     }
-    *x_out = x;
-    *y_out = y;
+    *x_out = (uint16_t)x;
+    *y_out = (uint16_t)y;
 }
