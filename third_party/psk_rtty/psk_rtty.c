@@ -97,6 +97,8 @@ static void prepare_viterbi_tables(const psk_rtty_rx_t *rx, uint16_t nstates);
 static void reset_fec_branches(psk_rtty_rx_t *rx);
 static void reset_fec_branch(psk_rtty_rx_t *rx, uint8_t branch_index);
 static void update_fec_phase_search(psk_rtty_rx_t *rx, fec_branch_state_t *branch);
+static uint32_t fec_ready_pairs_required(const psk_rtty_rx_t *rx);
+static int is_rx_text_char(unsigned char ch);
 
 static const unsigned char s_rtty_table[0x20][2] = {
     {0, 0}, {'E', '3'}, {'\n', '\n'}, {'A', '-'}, {' ', ' '}, {'S', '\''}, {'I', '8'}, {'U', '7'},
@@ -531,11 +533,11 @@ static void push_mfsk_varicode_bit(psk_rtty_rx_t *rx, int bit)
         const uint16_t code = rx->bit_acc >> 1;
         const unsigned char ch = code < sizeof(s_mfsk_decode) ? s_mfsk_decode[code] : 0U;
         rx->debug_delims++;
-        const int fec_ready = rx->inlv_depth == 0U ||
-                              s_fec_branch[0].pair_count > (uint32_t)rx->inlv_depth + rx->vit_traceback;
+        const int fec_ready = !rx->fec_enabled ||
+                              s_fec_branch[0].pair_count > fec_ready_pairs_required(rx);
         if (fec_ready && rx->fec_output_enabled && rx->sq_open &&
             rx->sq_stable_symbols >= SQ_EMIT_STABLE_SYMBOLS) {
-            if (ch != 0U) {
+            if (ch != 0U && is_rx_text_char(ch)) {
                 rx->debug_chars++;
                 emit(rx, (char)ch);
             } else if (code != 0U) {
@@ -564,11 +566,10 @@ static void push_mfsk_varicode_bit_branch(psk_rtty_rx_t *rx, fec_branch_state_t 
         const uint16_t code = branch->bit_acc >> 1;
         const unsigned char ch = code < sizeof(s_mfsk_decode) ? s_mfsk_decode[code] : 0U;
         rx->debug_delims++;
-        const int fec_ready = rx->inlv_depth == 0U ||
-                              branch->pair_count > (uint32_t)rx->inlv_depth + rx->vit_traceback;
+        const int fec_ready = branch->pair_count > fec_ready_pairs_required(rx);
         if (fec_ready && rx->sq_open && rx->sq_stable_symbols >= SQ_EMIT_STABLE_SYMBOLS &&
             fec_branch_selected(branch_index)) {
-            if (ch != 0U) {
+            if (ch != 0U && is_rx_text_char(ch)) {
                 rx->debug_chars++;
                 emit(rx, (char)ch);
             } else if (code != 0U) {
@@ -621,6 +622,27 @@ static void reset_fec_branches(psk_rtty_rx_t *rx)
     for (uint8_t branch = 0; branch < branch_count; ++branch) {
         reset_fec_branch(rx, branch);
     }
+}
+
+static uint32_t fec_ready_pairs_required(const psk_rtty_rx_t *rx)
+{
+    uint32_t required = (uint32_t)rx->vit_traceback;
+    if (rx->inlv_depth != 0U) {
+        required += (uint32_t)rx->inlv_depth;
+    }
+    if (rx->fec_punctured && rx->use_mfsk_varicode && rx->fec_k <= 7U) {
+        required += (uint32_t)rx->inlv_depth / 2U;
+        required += (uint32_t)rx->vit_traceback;
+        if (rx->config.mode == PSK_RTTY_MODE_8PSK1200F) {
+            required += 49152U;
+        }
+    }
+    return required;
+}
+
+static int is_rx_text_char(unsigned char ch)
+{
+    return ch == '\r' || ch == '\n' || ch == '\t' || (ch >= 32U && ch <= 126U);
 }
 
 static void push_payload_bits_from_fec(psk_rtty_rx_t *rx, fec_branch_state_t *branch,

@@ -66,6 +66,11 @@ void psk_modem_init(psk_modem_t *m, const psk_modem_config_t *config)
     backend_init(m);
 }
 
+void psk_modem_reset(psk_modem_t *m)
+{
+    backend_init(m);
+}
+
 void psk_modem_set_mode(psk_modem_t *m, psk_mode_t mode)
 {
     m->config.mode = mode;

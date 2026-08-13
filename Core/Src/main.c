@@ -84,6 +84,8 @@ int main(void)
     uint32_t last_touch_retry_tick = 0;
     uint8_t touch_ready = 0U;
     uint8_t touch_was_pressed = 0U;
+    uint8_t rx_input_open = 0U;
+    uint8_t rx_input_closed_blocks = 0U;
 
     if (touch_gt911_init() == HAL_OK) {
         touch_gt911_debug_snapshot(&touch_state);
@@ -150,8 +152,19 @@ int main(void)
                 block_abs_sum += (uint32_t)abs((int)samples[i]);
             }
             const uint32_t block_abs_avg = block_abs_sum / count;
-            const size_t got = (block_abs_avg >= RX_INPUT_OPEN_ABS_AVG) ?
-                               psk_modem_process(&g_modem, samples, count, decoded, sizeof(decoded)) : 0U;
+            size_t got = 0U;
+            if (block_abs_avg >= RX_INPUT_OPEN_ABS_AVG) {
+                if (!rx_input_open) {
+                    psk_modem_reset(&g_modem);
+                    rx_input_open = 1U;
+                }
+                rx_input_closed_blocks = 0U;
+                got = psk_modem_process(&g_modem, samples, count, decoded, sizeof(decoded));
+            } else if (rx_input_closed_blocks < 20U) {
+                rx_input_closed_blocks++;
+            } else {
+                rx_input_open = 0U;
+            }
             if (got > 0U) {
                 append_rx_log(decoded, got, now);
                 const size_t old = strlen(text);

@@ -46,6 +46,7 @@ typedef struct {
 } psk_modem_debug_t;
 
 void psk_modem_init(psk_modem_t *m, const psk_modem_config_t *config);
+void psk_modem_reset(psk_modem_t *m);
 void psk_modem_set_mode(psk_modem_t *m, psk_mode_t mode);
 void psk_modem_set_tone(psk_modem_t *m, int tone_hz);
 void psk_modem_set_afc(psk_modem_t *m, int enabled);

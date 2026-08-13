@@ -136,6 +136,48 @@ function Test-DecodedText {
     return $false
 }
 
+function Get-DecodeMatchInfo {
+    param(
+        [string]$Expected,
+        [string]$Decoded,
+        [System.Collections.Generic.List[string]]$Fragments
+    )
+
+    $expectedClean = ($Expected -replace "\s+", " ").Trim()
+    $decodedClean = ($Decoded -replace "\s+", " ").Trim()
+
+    $info = [ordered]@{
+        Found = $false
+        FragmentLength = 0
+        ExpectedOffset = -1
+        DecodedOffset = -1
+        WindowBER = 1.0
+        WindowCER = 1.0
+        WindowBitErrors = 0
+        WindowTotalBits = 0
+    }
+
+    foreach ($fragment in $Fragments) {
+        $decodedOffset = $decodedClean.IndexOf($fragment, [System.StringComparison]::Ordinal)
+        if ($decodedOffset -lt 0) {
+            continue
+        }
+
+        $expectedOffset = $expectedClean.IndexOf($fragment, [System.StringComparison]::Ordinal)
+        $length = $fragment.Length
+        $info.Found = $true
+        $info.FragmentLength = $length
+        $info.ExpectedOffset = $expectedOffset
+        $info.DecodedOffset = $decodedOffset
+        $info.WindowBER = 0.0
+        $info.WindowCER = 0.0
+        $info.WindowTotalBits = $length * 8
+        return [pscustomobject]$info
+    }
+
+    return [pscustomobject]$info
+}
+
 function Get-BitCount {
     param([int]$Value)
 
@@ -403,7 +445,8 @@ try {
                     }
                 }
             }
-            if (Test-DecodedText -Decoded $decoded.ToString() -Fragments $fragments) {
+            $matchInfo = Get-DecodeMatchInfo -Expected $expected -Decoded $decoded.ToString() -Fragments $fragments
+            if ($matchInfo.Found) {
                 $passed = $true
                 break
             }
@@ -418,13 +461,16 @@ try {
         }
 
         $stats = Get-DecodeErrorStats -Expected $expected -Decoded $decoded.ToString()
+        $matchInfo = Get-DecodeMatchInfo -Expected $expected -Decoded $decoded.ToString() -Fragments $fragments
         $berText = $stats.BER.ToString("P4", [System.Globalization.CultureInfo]::InvariantCulture)
         $cerText = $stats.CER.ToString("P4", [System.Globalization.CultureInfo]::InvariantCulture)
+        $winBerText = $matchInfo.WindowBER.ToString("P4", [System.Globalization.CultureInfo]::InvariantCulture)
+        $winCerText = $matchInfo.WindowCER.ToString("P4", [System.Globalization.CultureInfo]::InvariantCulture)
         if ($passed) {
-            Write-Host "PASS $mode matched board decoded text BER=$berText CER=$cerText chars=$($stats.DecodedLength) biterr=$($stats.BitErrors)/$($stats.TotalBits) offset=$($stats.BestOffset)"
+            Write-Host "PASS $mode matched board decoded text BER=$berText CER=$cerText winBER=$winBerText winCER=$winCerText chars=$($stats.DecodedLength) biterr=$($stats.BitErrors)/$($stats.TotalBits) offset=$($stats.BestOffset) winOffset=$($matchInfo.DecodedOffset)"
             $passCount++
         } else {
-            Write-Host "FAIL $mode no $MatchLength-char expected fragment matched within $limit seconds BER=$berText CER=$cerText chars=$($stats.DecodedLength) biterr=$($stats.BitErrors)/$($stats.TotalBits) offset=$($stats.BestOffset)"
+            Write-Host "FAIL $mode no $MatchLength-char expected fragment matched within $limit seconds BER=$berText CER=$cerText winBER=$winBerText winCER=$winCerText chars=$($stats.DecodedLength) biterr=$($stats.BitErrors)/$($stats.TotalBits) offset=$($stats.BestOffset)"
             $failCount++
         }
     }
