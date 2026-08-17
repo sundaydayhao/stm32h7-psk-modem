@@ -19,6 +19,11 @@ static size_t g_rx_log_len;
 static uint32_t g_last_rx_log_tick;
 static uint8_t g_serial_test_mode;
 static uint8_t g_rx_log_hex_mode;
+static uint8_t g_dump_sample_blocks;
+static int16_t g_capture[32768] __attribute__((section(".ram_d3_bss")));
+static uint32_t g_capture_limit;
+static uint32_t g_capture_count;
+static uint8_t g_capture_active;
 
 #define RX_INPUT_OPEN_ABS_AVG 500U
 #define RX_LOG_FLUSH_BYTES 160U
@@ -30,6 +35,9 @@ static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void print_rx_text(const char *tag, const char *text, size_t len);
 static void print_rx_hex(const char *text, size_t len);
+static void print_samples_hex(const int16_t *samples, size_t count);
+static void capture_samples(const int16_t *samples, size_t count);
+static void print_capture_hex(void);
 static void append_rx_log(const char *text, size_t len, uint32_t now);
 static void flush_rx_log(uint32_t now);
 static void reset_rx_log(void);
@@ -147,6 +155,11 @@ int main(void)
         }
 
         if (count > 0U) {
+            capture_samples(samples, count);
+            if (g_dump_sample_blocks > 0U) {
+                print_samples_hex(samples, count);
+                --g_dump_sample_blocks;
+            }
             uint32_t block_abs_sum = 0U;
             for (size_t i = 0; i < count; ++i) {
                 block_abs_sum += (uint32_t)abs((int)samples[i]);
@@ -190,7 +203,7 @@ int main(void)
             last_diag_tick = now;
             audio_input_debug_snapshot(&audio_debug);
             psk_modem_debug_snapshot(&g_modem, &modem_debug);
-            printf("[diag] mode=%s tone=%dHz sel=%dHz afc=%d sql=%d blocks=%lu empty=%lu cb=%lu/%lu in=%u lane=%u q=%lu ov=%lu maxq=%lu peak=%dHz sq=%d/%d open=%d chars=%lu fm=%d/%d fs=%u\r\n",
+            printf("[diag] mode=%s tone=%dHz sel=%dHz afc=%d sql=%d blocks=%lu empty=%lu cb=%lu/%lu in=%u raw=%u/%u lane=%u force=%d adc=%u ana=%u agc=%u clip=%lu q=%lu ov=%lu maxq=%lu peak=%dHz sq=%d/%d open=%d chars=%lu fm=%d/%d fs=%u\r\n",
                    psk_modem_mode_name(psk_modem_mode(&g_modem)),
                    modem_debug.tone_hz,
                    modem_debug.selected_tone_hz,
@@ -201,7 +214,14 @@ int main(void)
                    audio_debug.half_callbacks,
                    audio_debug.full_callbacks,
                    audio_debug.last_abs_avg,
+                   audio_debug.raw_abs_avg[0],
+                   audio_debug.raw_abs_avg[1],
                    audio_debug.selected_lane,
+                   audio_debug.forced_lane,
+                   audio_debug.codec_adc_volume,
+                   audio_debug.codec_ana_volume,
+                   audio_debug.auto_gain_enabled,
+                   audio_debug.clip_events,
                    audio_debug.queued_blocks,
                    audio_debug.overflow_blocks,
                    audio_debug.max_queued_blocks,
@@ -354,17 +374,89 @@ static void poll_serial_commands(char *text, size_t text_len, spectrum_t *spectr
                 }
                 reset_rx_log();
                 printf("[log] rx=%s\r\n", g_rx_log_hex_mode ? "HEX" : "TEXT");
+            } else if (ascii_starts_ignore_case(cmd, "INPUT")) {
+                char *arg = trim_ascii(cmd + 5);
+                const int input = atoi(arg);
+                if (input < 0 || input > 5) {
+                    printf("[cmd] error input must be 0..5\r\n");
+                } else if (audio_input_set_codec_input((uint8_t)input) == HAL_OK) {
+                    printf("[input] codec=%d\r\n", input);
+                } else {
+                    printf("[cmd] error input %d failed\r\n", input);
+                }
+            } else if (ascii_starts_ignore_case(cmd, "LANE")) {
+                char *arg = trim_ascii(cmd + 4);
+                int lane = -1;
+                if (ascii_equal_ignore_case(arg, "AUTO")) {
+                    lane = -1;
+                } else {
+                    lane = atoi(arg);
+                }
+                if (audio_input_set_lane((int8_t)lane) == HAL_OK) {
+                    printf("[lane] %s\r\n", lane < 0 ? "auto" : (lane == 0 ? "0" : "1"));
+                } else {
+                    printf("[cmd] error lane must be auto, 0, or 1\r\n");
+                }
+            } else if (ascii_starts_ignore_case(cmd, "GAIN")) {
+                char *arg = trim_ascii(cmd + 4);
+                char *end = arg;
+                const long adc = strtol(arg, &end, 0);
+                char *ana_arg = trim_ascii(end);
+                char *end2 = ana_arg;
+                const long ana = strtol(ana_arg, &end2, 0);
+                if (end == arg || end2 == ana_arg || adc < 0 || adc > 63 || ana < 0 || ana > 7) {
+                    printf("[cmd] error gain must be: GAIN <mic 0..63> <line 0..7>\r\n");
+                } else if (audio_input_set_codec_gain((uint8_t)adc, (uint8_t)ana) == HAL_OK) {
+                    printf("[gain] mic=%ld line=%ld\r\n", adc, ana);
+                } else {
+                    printf("[cmd] error gain apply failed\r\n");
+                }
+            } else if (ascii_starts_ignore_case(cmd, "AGC")) {
+                char *arg = trim_ascii(cmd + 3);
+                const int enabled = (*arg == '\0') ? 1 : (atoi(arg) != 0);
+                if (audio_input_set_auto_gain((uint8_t)enabled) == HAL_OK) {
+                    printf("[agc] %s\r\n", enabled ? "on" : "off");
+                } else {
+                    printf("[cmd] error agc failed\r\n");
+                }
+            } else if (ascii_starts_ignore_case(cmd, "DUMP")) {
+                char *arg = trim_ascii(cmd + 4);
+                const int blocks = (*arg == '\0') ? 1 : atoi(arg);
+                g_dump_sample_blocks = (blocks <= 0) ? 0U : (blocks > 8 ? 8U : (uint8_t)blocks);
+                printf("[dump] blocks=%u\r\n", g_dump_sample_blocks);
+            } else if (ascii_starts_ignore_case(cmd, "CAPDUMP")) {
+                print_capture_hex();
+            } else if (ascii_starts_ignore_case(cmd, "CAP")) {
+                char *arg = trim_ascii(cmd + 3);
+                int samples = (*arg == '\0') ? 16000 : atoi(arg);
+                if (samples < 0) {
+                    samples = 0;
+                } else if (samples > (int)(sizeof(g_capture) / sizeof(g_capture[0]))) {
+                    samples = (int)(sizeof(g_capture) / sizeof(g_capture[0]));
+                }
+                g_capture_count = 0U;
+                g_capture_limit = (uint32_t)samples;
+                g_capture_active = (samples > 0) ? 1U : 0U;
+                printf("[cap] armed=%lu\r\n", (unsigned long)g_capture_limit);
             } else if (ascii_equal_ignore_case(cmd, "STATUS")) {
                 psk_modem_debug_t modem_debug;
                 psk_modem_debug_snapshot(&g_modem, &modem_debug);
-                printf("[status] mode=%s tone=%dHz selected=%dHz afc=%d sql=%d supported=%d log=%s\r\n",
+                audio_input_debug_t audio_debug;
+                audio_input_debug_snapshot(&audio_debug);
+                printf("[status] mode=%s tone=%dHz selected=%dHz afc=%d sql=%d supported=%d log=%s input=%u lane=%d adc=%u ana=%u agc=%u clip=%lu\r\n",
                        psk_modem_mode_name(psk_modem_mode(&g_modem)),
                        modem_debug.tone_hz,
                        modem_debug.selected_tone_hz,
                        modem_debug.afc_enabled,
                        modem_debug.squelch_enabled,
                        psk_modem_mode_supported(psk_modem_mode(&g_modem)),
-                       g_rx_log_hex_mode ? "HEX" : "TEXT");
+                       g_rx_log_hex_mode ? "HEX" : "TEXT",
+                       audio_debug.codec_input,
+                       audio_debug.forced_lane,
+                       audio_debug.codec_adc_volume,
+                       audio_debug.codec_ana_volume,
+                       audio_debug.auto_gain_enabled,
+                       audio_debug.clip_events);
             } else {
                 printf("[cmd] error unknown '%s'\r\n", cmd);
             }
@@ -501,6 +593,49 @@ static void print_rx_hex(const char *text, size_t len)
         putchar(hex[c & 0x0FU]);
     }
     printf("\r\n");
+}
+
+static void print_samples_hex(const int16_t *samples, size_t count)
+{
+    static const char hex[] = "0123456789ABCDEF";
+
+    printf("[samples]");
+    for (size_t i = 0; i < count; ++i) {
+        const uint16_t v = (uint16_t)samples[i];
+        putchar(' ');
+        putchar(hex[(v >> 12) & 0x0FU]);
+        putchar(hex[(v >> 8) & 0x0FU]);
+        putchar(hex[(v >> 4) & 0x0FU]);
+        putchar(hex[v & 0x0FU]);
+    }
+    printf("\r\n");
+}
+
+static void capture_samples(const int16_t *samples, size_t count)
+{
+    if (!g_capture_active) {
+        return;
+    }
+    for (size_t i = 0; i < count && g_capture_count < g_capture_limit; ++i) {
+        g_capture[g_capture_count++] = samples[i];
+    }
+    if (g_capture_count >= g_capture_limit) {
+        g_capture_active = 0U;
+        printf("[cap] done=%lu\r\n", (unsigned long)g_capture_count);
+    }
+}
+
+static void print_capture_hex(void)
+{
+    printf("[capdump] samples=%lu\r\n", (unsigned long)g_capture_count);
+    for (uint32_t pos = 0; pos < g_capture_count; pos += 64U) {
+        uint32_t n = g_capture_count - pos;
+        if (n > 64U) {
+            n = 64U;
+        }
+        print_samples_hex(&g_capture[pos], n);
+    }
+    printf("[capdump] end\r\n");
 }
 
 void SystemClock_Config(void)

@@ -22,6 +22,23 @@
 #define AUDIO_DMA_HALF_COUNT AUDIO_DMA_HALFWORDS
 #define AUDIO_DMA_WORDS (AUDIO_DMA_HALFWORDS * 2U)
 #define AUDIO_BLOCK_QUEUE_LEN 16U
+#define CODEC_CHANNELS 2U
+#define CODEC_ADC_VOLUME_DEFAULT 0U
+#define CODEC_ANA_VOLUME_DEFAULT 6U
+#define CODEC_ADC_VOLUME_MAX 63U
+#define CODEC_ANA_VOLUME_MAX 7U
+#define CODEC_INPUT_MIC 0U
+#define CODEC_INPUT_LINE 1U
+#define CODEC_INPUT_AUX 2U
+#define CODEC_INPUT_MIC_LINE 3U
+#define CODEC_INPUT_MIC_AUX 4U
+#define CODEC_INPUT_LINE_AUX 5U
+#define AGC_CLIP_PEAK 30000
+#define AGC_HIGH_PEAK 26000
+#define AGC_LOW_PEAK 7000
+#define AGC_LOW_ABS_AVG 1800U
+#define AGC_SIGNAL_ABS_AVG 500U
+#define AGC_LOW_DWELL_BLOCKS 96U
 
 typedef enum {
     IN_PATH_OFF = 0x00,
@@ -61,7 +78,13 @@ static volatile uint32_t s_tail;
 static volatile uint8_t s_started;
 
 static audio_input_debug_t s_debug;
-static audio_decim_state_t s_decim_state[2];
+static audio_decim_state_t s_decim_state[CODEC_CHANNELS];
+static volatile int8_t s_forced_lane = -1;
+static uint8_t s_codec_input = CODEC_INPUT_LINE;
+static uint8_t s_codec_adc_volume = CODEC_ADC_VOLUME_DEFAULT;
+static uint8_t s_codec_ana_volume = CODEC_ANA_VOLUME_DEFAULT;
+static uint8_t s_auto_gain_enabled = 1U;
+static uint32_t s_agc_low_blocks;
 
 static uint16_t s_wm_regs[] = {
     0x000, 0x000, 0x000, 0x000, 0x050, 0x000, 0x140, 0x000,
@@ -86,6 +109,9 @@ static void wm8978_cfg_audio_path(uint16_t in_path, uint16_t out_path);
 static void wm8978_set_mic_gain(uint8_t gain);
 static void wm8978_set_line_gain(uint8_t gain);
 static void wm8978_gpio1(uint8_t value);
+static HAL_StatusTypeDef set_codec_input_unlocked(uint8_t input);
+static HAL_StatusTypeDef apply_codec_gain_unlocked(uint8_t adc_volume, uint8_t ana_volume);
+static void update_frontend_agc(void);
 static void process_dma_half(uint32_t offset, uint8_t is_full);
 static void invalidate_dma_cache(const void *addr, size_t bytes);
 
@@ -99,6 +125,16 @@ HAL_StatusTypeDef audio_input_start(void)
     memset(s_dma, 0, sizeof(s_dma));
     audio_decim_init(&s_decim_state[0]);
     audio_decim_init(&s_decim_state[1]);
+    s_head = 0U;
+    s_tail = 0U;
+    s_queued_blocks = 0U;
+    s_max_queued_blocks = 0U;
+    s_agc_low_blocks = 0U;
+    s_debug.codec_input = s_codec_input;
+    s_debug.forced_lane = s_forced_lane;
+    s_debug.codec_adc_volume = s_codec_adc_volume;
+    s_debug.codec_ana_volume = s_codec_ana_volume;
+    s_debug.auto_gain_enabled = s_auto_gain_enabled;
 
     if (configure_audio_clock() != HAL_OK) {
         return HAL_ERROR;
@@ -112,9 +148,14 @@ HAL_StatusTypeDef audio_input_start(void)
     }
 
     wm8978_cfg_audio_if();
-    wm8978_cfg_audio_path(LINE_ON | ADC_ON, OUT_PATH_OFF);
-    wm8978_set_mic_gain(0U);
-    wm8978_set_line_gain(6U);
+    if (set_codec_input_unlocked(s_codec_input) != HAL_OK) {
+        s_debug.sai_error = 0x80000004UL;
+        return HAL_ERROR;
+    }
+    if (apply_codec_gain_unlocked(s_codec_adc_volume, s_codec_ana_volume) != HAL_OK) {
+        s_debug.sai_error = 0x80000005UL;
+        return HAL_ERROR;
+    }
 
     if (configure_i2s() != HAL_OK) {
         return HAL_ERROR;
@@ -148,6 +189,7 @@ size_t audio_input_read(int16_t *out, size_t max_samples)
     __enable_irq();
 
     ++s_read_blocks;
+    update_frontend_agc();
     return AUDIO_INPUT_DECODE_BLOCK_SAMPLES;
 }
 
@@ -171,6 +213,11 @@ void audio_input_debug_snapshot(audio_input_debug_t *debug)
     debug->dma_state = (uint32_t)s_dma_rx.State;
     debug->sai_error = s_i2s.ErrorCode;
     debug->dma_error = s_dma_rx.ErrorCode;
+    debug->codec_input = s_codec_input;
+    debug->forced_lane = s_forced_lane;
+    debug->codec_adc_volume = s_codec_adc_volume;
+    debug->codec_ana_volume = s_codec_ana_volume;
+    debug->auto_gain_enabled = s_auto_gain_enabled;
     if (s_dma_rx.Instance) {
         DMA_Stream_TypeDef *stream = (DMA_Stream_TypeDef *)s_dma_rx.Instance;
         debug->dma_cr = stream->CR;
@@ -180,6 +227,55 @@ void audio_input_debug_snapshot(audio_input_debug_t *debug)
         debug->dma_ndtr = 0U;
     }
     __enable_irq();
+}
+
+HAL_StatusTypeDef audio_input_set_codec_input(uint8_t input)
+{
+    if (input > CODEC_INPUT_LINE_AUX) {
+        return HAL_ERROR;
+    }
+    if (!s_started) {
+        s_codec_input = input;
+        s_debug.codec_input = input;
+        return HAL_OK;
+    }
+    if (set_codec_input_unlocked(input) != HAL_OK) {
+        return HAL_ERROR;
+    }
+    return apply_codec_gain_unlocked(s_codec_adc_volume, s_codec_ana_volume);
+}
+
+HAL_StatusTypeDef audio_input_set_lane(int8_t lane)
+{
+    if (lane < -1 || lane >= (int8_t)CODEC_CHANNELS) {
+        return HAL_ERROR;
+    }
+    s_forced_lane = lane;
+    s_debug.forced_lane = lane;
+    return HAL_OK;
+}
+
+HAL_StatusTypeDef audio_input_set_codec_gain(uint8_t adc_volume, uint8_t ana_volume)
+{
+    if (adc_volume > CODEC_ADC_VOLUME_MAX || ana_volume > CODEC_ANA_VOLUME_MAX) {
+        return HAL_ERROR;
+    }
+    if (!s_started) {
+        s_codec_adc_volume = adc_volume;
+        s_codec_ana_volume = ana_volume;
+        s_debug.codec_adc_volume = adc_volume;
+        s_debug.codec_ana_volume = ana_volume;
+        return HAL_OK;
+    }
+    return apply_codec_gain_unlocked(adc_volume, ana_volume);
+}
+
+HAL_StatusTypeDef audio_input_set_auto_gain(uint8_t enabled)
+{
+    s_auto_gain_enabled = enabled ? 1U : 0U;
+    s_agc_low_blocks = 0U;
+    s_debug.auto_gain_enabled = s_auto_gain_enabled;
+    return HAL_OK;
 }
 
 void audio_input_dma_irq_handler(void)
@@ -513,13 +609,148 @@ static void wm8978_gpio1(uint8_t value)
     wm8978_write(8U, value ? 7U : 6U);
 }
 
+static HAL_StatusTypeDef set_codec_input_unlocked(uint8_t input)
+{
+    uint16_t in_path = ADC_ON;
+
+    switch (input) {
+    case CODEC_INPUT_MIC:
+        in_path |= MIC_LEFT_ON | MIC_RIGHT_ON;
+        break;
+    case CODEC_INPUT_LINE:
+        in_path |= LINE_ON;
+        break;
+    case CODEC_INPUT_AUX:
+        in_path |= AUX_ON;
+        break;
+    case CODEC_INPUT_MIC_LINE:
+        in_path |= MIC_LEFT_ON | MIC_RIGHT_ON | LINE_ON;
+        break;
+    case CODEC_INPUT_MIC_AUX:
+        in_path |= MIC_LEFT_ON | MIC_RIGHT_ON | AUX_ON;
+        break;
+    case CODEC_INPUT_LINE_AUX:
+        in_path |= LINE_ON | AUX_ON;
+        break;
+    default:
+        return HAL_ERROR;
+    }
+
+    wm8978_cfg_audio_path(in_path, OUT_PATH_OFF);
+    s_codec_input = input;
+    s_debug.codec_input = input;
+    return HAL_OK;
+}
+
+static HAL_StatusTypeDef apply_codec_gain_unlocked(uint8_t adc_volume, uint8_t ana_volume)
+{
+    if (adc_volume > CODEC_ADC_VOLUME_MAX || ana_volume > CODEC_ANA_VOLUME_MAX) {
+        return HAL_ERROR;
+    }
+
+    wm8978_set_mic_gain(adc_volume);
+    wm8978_set_line_gain(ana_volume);
+    s_codec_adc_volume = adc_volume;
+    s_codec_ana_volume = ana_volume;
+    s_debug.codec_adc_volume = adc_volume;
+    s_debug.codec_ana_volume = ana_volume;
+    return HAL_OK;
+}
+
+static void update_frontend_agc(void)
+{
+    int16_t raw_min[CODEC_CHANNELS];
+    int16_t raw_max[CODEC_CHANNELS];
+    uint16_t raw_abs_avg[CODEC_CHANNELS];
+    uint8_t selected_lane;
+
+    if (!s_auto_gain_enabled) {
+        return;
+    }
+
+    __disable_irq();
+    selected_lane = s_debug.selected_lane;
+    for (size_t i = 0; i < CODEC_CHANNELS; ++i) {
+        raw_min[i] = s_debug.raw_min[i];
+        raw_max[i] = s_debug.raw_max[i];
+        raw_abs_avg[i] = s_debug.raw_abs_avg[i];
+    }
+    __enable_irq();
+
+    if (selected_lane >= CODEC_CHANNELS) {
+        return;
+    }
+
+    int16_t min_sample = raw_min[selected_lane];
+    int16_t max_sample = raw_max[selected_lane];
+    for (size_t i = 0; i < CODEC_CHANNELS; ++i) {
+        if (raw_min[i] < min_sample) {
+            min_sample = raw_min[i];
+        }
+        if (raw_max[i] > max_sample) {
+            max_sample = raw_max[i];
+        }
+    }
+
+    const int min_abs = abs((int)min_sample);
+    const int max_abs = abs((int)max_sample);
+    const int peak = (min_abs > max_abs) ? min_abs : max_abs;
+    const uint32_t abs_avg = raw_abs_avg[selected_lane];
+
+    if (peak >= AGC_CLIP_PEAK || peak >= AGC_HIGH_PEAK) {
+        uint8_t next_adc = s_codec_adc_volume;
+        uint8_t next_ana = s_codec_ana_volume;
+        if (next_ana > 0U) {
+            --next_ana;
+        } else if (next_adc >= 2U) {
+            next_adc = (uint8_t)(next_adc - 2U);
+        } else {
+            next_adc = 0U;
+        }
+        if (peak >= AGC_CLIP_PEAK) {
+            ++s_debug.clip_events;
+        }
+        if (next_adc != s_codec_adc_volume || next_ana != s_codec_ana_volume) {
+            (void)apply_codec_gain_unlocked(next_adc, next_ana);
+        }
+        s_agc_low_blocks = 0U;
+        return;
+    }
+
+    if (abs_avg < AGC_SIGNAL_ABS_AVG) {
+        s_agc_low_blocks = 0U;
+        return;
+    }
+
+    if (peak < AGC_LOW_PEAK && abs_avg < AGC_LOW_ABS_AVG) {
+        if (++s_agc_low_blocks >= AGC_LOW_DWELL_BLOCKS) {
+            uint8_t next_adc = s_codec_adc_volume;
+            uint8_t next_ana = s_codec_ana_volume;
+            if (next_ana < CODEC_ANA_VOLUME_DEFAULT) {
+                ++next_ana;
+            } else if (next_adc < CODEC_ADC_VOLUME_MAX) {
+                next_adc = (uint8_t)((next_adc + 2U > CODEC_ADC_VOLUME_MAX) ?
+                    CODEC_ADC_VOLUME_MAX : next_adc + 2U);
+            } else if (next_ana < CODEC_ANA_VOLUME_MAX) {
+                ++next_ana;
+            }
+            if (next_adc != s_codec_adc_volume || next_ana != s_codec_ana_volume) {
+                (void)apply_codec_gain_unlocked(next_adc, next_ana);
+            }
+            s_agc_low_blocks = 0U;
+        }
+    } else {
+        s_agc_low_blocks = 0U;
+    }
+}
+
 static void process_dma_half(uint32_t offset, uint8_t is_full)
 {
-    static int16_t lane_raw[2][AUDIO_INPUT_DECODE_BLOCK_SAMPLES * AUDIO_INPUT_DECIMATION];
-    int32_t sum_abs[2] = {0, 0};
-    int16_t min_raw[2] = {INT16_MAX, INT16_MAX};
-    int16_t max_raw[2] = {INT16_MIN, INT16_MIN};
-    int16_t lane_block[2][AUDIO_INPUT_DECODE_BLOCK_SAMPLES];
+    static int16_t lane_raw[CODEC_CHANNELS][AUDIO_INPUT_DECODE_BLOCK_SAMPLES * AUDIO_INPUT_DECIMATION];
+    int32_t sum_abs[CODEC_CHANNELS] = {0, 0};
+    int16_t min_raw[CODEC_CHANNELS] = {INT16_MAX, INT16_MAX};
+    int16_t max_raw[CODEC_CHANNELS] = {INT16_MIN, INT16_MIN};
+    int16_t lane_block[CODEC_CHANNELS][AUDIO_INPUT_DECODE_BLOCK_SAMPLES];
     int16_t block[AUDIO_INPUT_DECODE_BLOCK_SAMPLES];
     const size_t raw_count = AUDIO_INPUT_DECODE_BLOCK_SAMPLES * AUDIO_INPUT_DECIMATION;
 
@@ -558,7 +789,8 @@ static void process_dma_half(uint32_t offset, uint8_t is_full)
         return;
     }
 
-    const uint8_t selected_lane = (sum_abs[1] > sum_abs[0]) ? 1U : 0U;
+    const uint8_t selected_lane = (s_forced_lane >= 0) ? (uint8_t)s_forced_lane :
+        ((sum_abs[1] > sum_abs[0]) ? 1U : 0U);
     memcpy(block, lane_block[selected_lane], sizeof(block));
     int16_t last_min = INT16_MAX;
     int16_t last_max = INT16_MIN;

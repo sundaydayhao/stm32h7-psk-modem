@@ -50,9 +50,19 @@ typedef struct {
     uint32_t dma_error;
     uint32_t dma_cr;
     uint32_t dma_ndtr;
+    uint8_t codec_input;
+    int8_t forced_lane;
+    uint8_t codec_adc_volume;
+    uint8_t codec_ana_volume;
+    uint8_t auto_gain_enabled;
+    uint32_t clip_events;
 } audio_input_debug_t;
 
 HAL_StatusTypeDef audio_input_start(void);
 size_t audio_input_read(int16_t *out, size_t max_samples);
 void audio_input_debug_snapshot(audio_input_debug_t *debug);
+HAL_StatusTypeDef audio_input_set_codec_input(uint8_t input);
+HAL_StatusTypeDef audio_input_set_lane(int8_t lane);
+HAL_StatusTypeDef audio_input_set_codec_gain(uint8_t adc_volume, uint8_t ana_volume);
+HAL_StatusTypeDef audio_input_set_auto_gain(uint8_t enabled);
 void audio_input_dma_irq_handler(void);
