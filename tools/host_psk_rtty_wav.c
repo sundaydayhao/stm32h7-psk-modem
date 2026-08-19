@@ -19,9 +19,21 @@ typedef struct {
     size_t cap;
 } text_buf_t;
 
+typedef struct {
+    text_buf_t text;
+    size_t current_sample;
+    size_t first_char_sample;
+    int have_first_char;
+} decode_ctx_t;
+
 static void append_char(char c, void *userdata)
 {
-    text_buf_t *buf = (text_buf_t *)userdata;
+    decode_ctx_t *ctx = (decode_ctx_t *)userdata;
+    text_buf_t *buf = &ctx->text;
+    if (!ctx->have_first_char) {
+        ctx->first_char_sample = ctx->current_sample;
+        ctx->have_first_char = 1;
+    }
     if (buf->len + 1 >= buf->cap) {
         size_t next = buf->cap ? buf->cap * 2 : 4096;
         char *p = (char *)realloc(buf->data, next);
@@ -122,6 +134,34 @@ static int read_wav_mono16(const char *path, int16_t **samples, size_t *count, i
     *samples = out;
     *count = frames;
     return 1;
+}
+
+static void apply_input_impairments(int16_t *samples, size_t count)
+{
+    const char *gain_text = getenv("PSK_INPUT_GAIN");
+    const char *noise_text = getenv("PSK_NOISE_PEAK");
+    const float gain = gain_text ? strtof(gain_text, NULL) : 1.0f;
+    const int noise_peak = noise_text ? (int)strtol(noise_text, NULL, 10) : 0;
+    uint32_t rng = 0x6d2b79f5U;
+
+    if (gain == 1.0f && noise_peak <= 0) {
+        return;
+    }
+    for (size_t i = 0; i < count; ++i) {
+        int noise = 0;
+        if (noise_peak > 0) {
+            rng = rng * 1664525U + 1013904223U;
+            noise = (int)(((uint64_t)(rng >> 16U) * (uint32_t)(noise_peak * 2 + 1)) >> 16U) -
+                    noise_peak;
+        }
+        int sample = (int)((float)samples[i] * gain) + noise;
+        if (sample > 32767) {
+            sample = 32767;
+        } else if (sample < -32768) {
+            sample = -32768;
+        }
+        samples[i] = (int16_t)sample;
+    }
 }
 
 static psk_rtty_mode_t parse_mode(const char *name)
@@ -290,6 +330,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "failed to read wav: %s\n", argv[2]);
         return 1;
     }
+    apply_input_impairments(samples, count);
 
     int16_t *decode_samples = samples;
     size_t decode_count = count;
@@ -314,17 +355,23 @@ int main(int argc, char **argv)
                 argv[2], rate, HOST_CODEC_RATE_HZ);
     }
 
-    text_buf_t decoded = {0};
+    decode_ctx_t decoded = {0};
+    const char *tone_text = getenv("PSK_RX_TONE_HZ");
+    const int rx_tone_hz = tone_text ? (int)strtol(tone_text, NULL, 10) : 1500;
     psk_rtty_config_t cfg = {
         .mode = parse_mode(argv[1]),
         .sample_rate_hz = decode_rate,
-        .rx_tone_hz = 1500,
+        .rx_tone_hz = rx_tone_hz,
         .char_cb = append_char,
         .userdata = &decoded,
     };
     psk_rtty_rx_t rx;
     psk_rtty_rx_init(&rx, &cfg);
     rx.sq_thresh = 35;
+    const char *afc = getenv("PSK_AFC");
+    if (afc) {
+        rx.afc_enabled = strtol(afc, NULL, 10) != 0;
+    }
     const char *warmup = getenv("PSK_WARMUP");
     if (warmup) {
         rx.warmup_symbols = (int)strtol(warmup, NULL, 10);
@@ -336,22 +383,30 @@ int main(int argc, char **argv)
         if (n > block) {
             n = block;
         }
+        decoded.current_sample = pos;
         psk_rtty_rx_feed(&rx, decode_samples + pos, n);
     }
 
     size_t match_len = argc >= 5 ? (size_t)strtoul(argv[4], NULL, 10) : 60U;
-    int ok = has_expected_fragment(decoded.data ? decoded.data : "", argv[3], match_len);
-    printf("%s decoded=%zu symbols=%lu bits=%lu chars=%lu sq=%d/%d fm=%d/%d fs=%u match=%s\n",
-           argv[1], decoded.len, (unsigned long)rx.debug_symbols, (unsigned long)rx.debug_bits,
-           (unsigned long)rx.debug_chars, rx.sq_level, rx.sq_thresh,
+    int ok = has_expected_fragment(decoded.text.data ? decoded.text.data : "", argv[3], match_len);
+    const double first_ms = decoded.have_first_char ?
+        ((double)decoded.first_char_sample * 1000.0 / (double)decode_rate) : -1.0;
+    const float tracked_hz = (rx.nco_phase_inc + rx.freq_error) * (float)decode_rate /
+                             6.28318530717958647692f;
+    printf("%s decoded=%zu first_ms=%.1f symbols=%lu bits=%lu chars=%lu sq=%d/%d lock=%u "
+           "tone=%d/%.1f fm=%d/%d fs=%u match=%s\n",
+           argv[1], decoded.text.len, first_ms,
+           (unsigned long)rx.debug_symbols, (unsigned long)rx.debug_bits,
+           (unsigned long)rx.debug_chars, rx.sq_level, rx.sq_thresh, rx.lock_state,
+           rx_tone_hz, tracked_hz,
            rx.debug_fec_metric[0], rx.debug_fec_metric[1], rx.debug_fec_selected,
            ok ? "yes" : "no");
-    if (decoded.data) {
-        fwrite(decoded.data, 1, decoded.len < 500 ? decoded.len : 500, stdout);
+    if (decoded.text.data) {
+        fwrite(decoded.text.data, 1, decoded.text.len < 500 ? decoded.text.len : 500, stdout);
         fputc('\n', stdout);
     }
 
-    free(decoded.data);
+    free(decoded.text.data);
     free(decimated);
     free(samples);
     return ok ? 0 : 1;

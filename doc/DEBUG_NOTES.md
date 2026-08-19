@@ -1,6 +1,6 @@
 # STM32H743 PSK Modem Debug Notes
 
-Last updated: 2026-08-13
+Last updated: 2026-08-19
 
 ## Current Board State
 
@@ -10,7 +10,9 @@ Last updated: 2026-08-13
 - Touch: GT911-compatible controller, currently working.
 - Audio codec: WM8978, controlled over I2C1, sampled by SPI2/I2S2 RX DMA.
 - Serial control/log port used in this session: `COM11` at `115200`.
-- pyOCD probe used in this session: `4c2261d77b0dad97`.
+- Primary flash/debug probe: EmbedFire Fire-DAP CMSIS-DAP, connected through JTAG.
+- Application serial port: `COM11` at `115200`.  The Fire-DAP VCP on `COM10`
+  is not wired to the firmware USART1.
 
 Normal interactive UI is restored:
 
@@ -33,7 +35,13 @@ Build host tools:
 .\tools\build_host_tools.ps1
 ```
 
-Flash firmware:
+Flash firmware with the connected Fire-DAP (JTAG):
+
+```powershell
+.\tools\openocd_flash_cmsis_dap_jtag.ps1 -Preset debug -AdapterSpeedKhz 100
+```
+
+Legacy pyOCD command (do not use for the Fire-DAP JTAG workflow):
 
 ```powershell
 C:\Users\hazh\AppData\Roaming\Python\Python312\Scripts\pyocd.exe flash --target stm32h743xx --probe 4c2261d77b0dad97 --frequency 1000000 -O connect_mode=under-reset --erase auto C:\projects\stm32h7-psk-modem\build\debug\stm32h743iit6_psk_modem.elf
@@ -196,6 +204,14 @@ Files:
 
 Current UI:
 
+- LVGL 8.3 drives the 800x480 screen.  Its 24 KiB dynamic heap is in DTCM;
+  the 32-line RGB565 draw buffer and LTDC RGB888 framebuffer remain in external
+  SDRAM.  The waterfall is written incrementally to the LTDC framebuffer so
+  its 456x150 area is never redrawn by LVGL every update.
+- Each incoming spectrum line is written at the bottom of the waterfall.  The
+  preceding lines are shifted upward in place by DMA2D RGB888 memory-to-memory
+  transfer, rather than wrapping around or being copied by the CPU.  This
+  makes the newest spectrum permanently appear at the bottom.
 - Left top: active mode, baud, carrier count, tone, peak, input level, selected lane, queue depth.
 - Left middle: spectrum/waterfall.
 - Left bottom: RX TEXT.
@@ -206,7 +222,8 @@ Touch:
 - GT911 is working.
 - On boot, log has shown:
   - `[touch] gt911 addr=0x5d id=911`
-- Touch mode selection maps through `display_mode_at()`.
+- Touch is an LVGL pointer input; LVGL mode-button events select the same
+  modem modes as serial `MODE <name>` commands.
 
 Important:
 
@@ -227,6 +244,23 @@ Host full regression against `C:\projects\psk-script\generated-wav-48000` passed
 - `PASS=27 FAIL=0 NO-WAV=0 TOTAL=27`
 - Result file noted during development:
   - `tools\stage_unified_channel_48000.txt`
+
+## 2026-08-19 LVGL Waterfall Follow-up
+
+The initial upward-scroll implementation used a CPU `memmove()` of roughly
+203 KiB per spectrum line.  It could cause audio input queue overflow during
+board playback (`q=15`, `ov=17`).  `fire_lcd_scroll_rect_up()` now uses the
+STM32H743 DMA2D peripheral to shift the 456x150 RGB888 waterfall upward; the
+bottom row is then rendered from the latest spectrum.
+
+Validation with normal UI/touch processing enabled:
+
+- Firmware build: pass; host WAV regression: `PASS=27 FAIL=0 NO-WAV=0 TOTAL=27`.
+- JTAG programming with Fire-DAP: verified OK.
+- COM11 WAV regression (`BPSK31`, `8PSK125F`, `8PSK250F`):
+  `PASS=3 FAIL=0 SKIP=0 TOTAL=3`.
+- During those runs, `ov=0`; queue depth briefly reached 9 while receiving,
+  and the recorded maximum was 14, but no audio blocks were lost.
 
 Do not treat `C:\projects\psk-script\generate_psk_wavs.py` as protocol truth:
 

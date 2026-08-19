@@ -24,6 +24,8 @@ static int16_t g_capture[32768] __attribute__((section(".ram_d3_bss")));
 static uint32_t g_capture_limit;
 static uint32_t g_capture_count;
 static uint8_t g_capture_active;
+static volatile uint8_t g_display_mode_pending;
+static volatile psk_mode_t g_display_mode;
 
 #define RX_INPUT_OPEN_ABS_AVG 500U
 #define RX_LOG_FLUSH_BYTES 160U
@@ -44,6 +46,7 @@ static void reset_rx_log(void);
 static void poll_serial_commands(char *text, size_t text_len, spectrum_t *spectrum);
 static void select_mode(psk_mode_t selected, char *text, size_t text_len, spectrum_t *spectrum,
                         const char *source);
+static void display_mode_selected(psk_mode_t selected, void *user);
 static int find_mode_by_name(const char *name, psk_mode_t *mode);
 static int ascii_equal_ignore_case(const char *a, const char *b);
 static int ascii_starts_ignore_case(const char *text, const char *prefix);
@@ -74,10 +77,7 @@ int main(void)
         .squelch_enabled = 1,
     };
     psk_modem_init(&g_modem, &cfg);
-
-    if (audio_input_start() != HAL_OK) {
-        printf("[warn] audio backend not started\r\n");
-    }
+    display_set_mode_selected_callback(display_mode_selected, NULL);
 
     int16_t samples[AUDIO_INPUT_DECODE_BLOCK_SAMPLES];
     char decoded[96];
@@ -86,18 +86,15 @@ int main(void)
     audio_input_debug_t audio_debug;
     psk_modem_debug_t modem_debug;
     touch_gt911_state_t touch_state = {0};
-    uint32_t last_diag_tick = 0;
-    uint32_t last_render_tick = 0;
-    uint32_t last_touch_tick = 0;
-    uint32_t last_touch_retry_tick = 0;
-    uint8_t touch_ready = 0U;
-    uint8_t touch_was_pressed = 0U;
-    uint8_t rx_input_open = 0U;
-    uint8_t rx_input_closed_blocks = 0U;
 
+    /* Render dynamic content once before I2S DMA starts to avoid a boot-time queue spike. */
+    display_render(&spectrum, psk_modem_mode_info(&g_modem), psk_modem_tone_hz(&g_modem),
+                   text, 0U, 0U, 0U);
+    display_refresh_now();
+
+    /* GT911 probing performs blocking I2C transactions, so finish it before DMA starts. */
     if (touch_gt911_init() == HAL_OK) {
         touch_gt911_debug_snapshot(&touch_state);
-        touch_ready = 1U;
         printf("[touch] gt911 addr=0x%02x id=%s\r\n", touch_state.address >> 1, touch_state.id);
     } else {
         touch_gt911_debug_snapshot(&touch_state);
@@ -106,51 +103,38 @@ int main(void)
                (unsigned long)touch_state.last_error);
     }
 
+    if (audio_input_start() != HAL_OK) {
+        printf("[warn] audio backend not started\r\n");
+    }
+
+    uint32_t last_diag_tick = 0;
+    uint32_t last_render_tick = 0;
+    uint32_t last_touch_retry_tick = 0;
+    uint8_t rx_input_open = 0U;
+    uint8_t rx_input_closed_blocks = 0U;
+
     while (1) {
         const size_t count = audio_input_read(samples, AUDIO_INPUT_DECODE_BLOCK_SAMPLES);
         const uint32_t now = HAL_GetTick();
 
         poll_serial_commands(text, sizeof(text), &spectrum);
 
+        if (g_display_mode_pending) {
+            const psk_mode_t selected = g_display_mode;
+            g_display_mode_pending = 0U;
+            select_mode(selected, text, sizeof(text), &spectrum, "touch");
+        }
+
+        touch_gt911_debug_snapshot(&touch_state);
         if (!g_serial_test_mode && !touch_state.present && (uint32_t)(now - last_touch_retry_tick) >= 1000U) {
             last_touch_retry_tick = now;
             if (touch_gt911_init() == HAL_OK) {
                 touch_gt911_debug_snapshot(&touch_state);
-                touch_ready = 1U;
                 printf("[touch] gt911 addr=0x%02x id=%s recovered\r\n",
                        touch_state.address >> 1,
                        touch_state.id);
             } else {
                 touch_gt911_debug_snapshot(&touch_state);
-            }
-        }
-
-        if (!g_serial_test_mode && (uint32_t)(now - last_touch_tick) >= 30U) {
-            last_touch_tick = now;
-            if (touch_gt911_read(&touch_state) == HAL_OK) {
-                touch_ready = 1U;
-                if (touch_state.pressed && !touch_was_pressed) {
-                    psk_mode_t selected;
-                    if (display_mode_at(touch_state.x, touch_state.y, &selected)) {
-                        select_mode(selected, text, sizeof(text), &spectrum, "touch");
-                        printf("[touch] raw=%u,%u map=%u,%u\r\n",
-                               touch_state.raw_x,
-                               touch_state.raw_y,
-                               touch_state.x,
-                               touch_state.y);
-                    } else {
-                        printf("[touch] down raw=%u,%u map=%u,%u miss st=0x%02x\r\n",
-                               touch_state.raw_x,
-                               touch_state.raw_y,
-                               touch_state.x,
-                               touch_state.y,
-                               touch_state.last_status);
-                    }
-                }
-                touch_was_pressed = touch_state.pressed;
-            } else if (touch_ready) {
-                touch_ready = 0U;
-                touch_was_pressed = 0U;
             }
         }
 
@@ -191,8 +175,11 @@ int main(void)
             if (!g_serial_test_mode && (uint32_t)(now - last_render_tick) >= 500U) {
                 last_render_tick = now;
                 spectrum_analyze(samples, count, AUDIO_INPUT_ACTUAL_DECODE_RATE_HZ, &spectrum);
+                audio_input_debug_snapshot(&audio_debug);
                 display_render(&spectrum, psk_modem_mode_info(&g_modem),
-                               psk_modem_tone_hz(&g_modem), text);
+                               psk_modem_tone_hz(&g_modem), text,
+                               audio_debug.last_abs_avg, audio_debug.selected_lane,
+                               audio_debug.queued_blocks);
             }
         } else {
             flush_rx_log(now);
@@ -203,12 +190,13 @@ int main(void)
             last_diag_tick = now;
             audio_input_debug_snapshot(&audio_debug);
             psk_modem_debug_snapshot(&g_modem, &modem_debug);
-            printf("[diag] mode=%s tone=%dHz sel=%dHz afc=%d sql=%d blocks=%lu empty=%lu cb=%lu/%lu in=%u raw=%u/%u lane=%u force=%d adc=%u ana=%u agc=%u clip=%lu q=%lu ov=%lu maxq=%lu peak=%dHz sq=%d/%d open=%d chars=%lu fm=%d/%d fs=%u\r\n",
+            printf("[diag] mode=%s tone=%dHz sel=%dHz afc=%d sql=%d lock=%u blocks=%lu empty=%lu cb=%lu/%lu in=%u raw=%u/%u lane=%u force=%d adc=%u ana=%u agc=%u clip=%lu q=%lu ov=%lu maxq=%lu peak=%dHz sq=%d/%d open=%d chars=%lu fm=%d/%d fs=%u\r\n",
                    psk_modem_mode_name(psk_modem_mode(&g_modem)),
                    modem_debug.tone_hz,
                    modem_debug.selected_tone_hz,
                    modem_debug.afc_enabled,
                    modem_debug.squelch_enabled,
+                   modem_debug.lock_state,
                    audio_debug.read_blocks,
                    audio_debug.empty_reads,
                    audio_debug.half_callbacks,
@@ -341,7 +329,7 @@ static void poll_serial_commands(char *text, size_t text_len, spectrum_t *spectr
                 printf("[tone] selected %dHz source=serial\r\n", psk_modem_tone_hz(&g_modem));
                 if (!g_serial_test_mode) {
                     display_render(spectrum, psk_modem_mode_info(&g_modem),
-                                   psk_modem_tone_hz(&g_modem), text ? text : "");
+                                   psk_modem_tone_hz(&g_modem), text ? text : "", 0U, 0U, 0U);
                 }
             } else if (ascii_starts_ignore_case(cmd, "AFC")) {
                 char *arg = trim_ascii(cmd + 3);
@@ -496,7 +484,16 @@ static void select_mode(psk_mode_t selected, char *text, size_t text_len, spectr
            psk_modem_mode_supported(selected) ? "" : " (display only)",
            source ? source : "unknown");
     display_render(spectrum, psk_modem_mode_info(&g_modem),
-                   psk_modem_tone_hz(&g_modem), text ? text : "");
+                   psk_modem_tone_hz(&g_modem), text ? text : "", 0U, 0U, 0U);
+}
+
+static void display_mode_selected(psk_mode_t selected, void *user)
+{
+    (void)user;
+    if (selected < PSK_MODE_COUNT) {
+        g_display_mode = selected;
+        g_display_mode_pending = 1U;
+    }
 }
 
 static int find_mode_by_name(const char *name, psk_mode_t *mode)
@@ -766,6 +763,11 @@ void Error_Handler(void)
     __disable_irq();
     while (1) {
     }
+}
+
+void HAL_SYSTICK_Callback(void)
+{
+    display_tick_inc(1U);
 }
 
 int __io_putchar(int ch)

@@ -7,6 +7,9 @@
 
 #define FIRE_LCD_WIDTH 800U
 #define FIRE_LCD_HEIGHT 480U
+#define FIRE_LCD_BYTES_PER_PIXEL 3U
+#define FIRE_LCD_FRAMEBUFFER_ADDR 0xD0000000UL
+#define FIRE_LCD_FRAMEBUFFER_SIZE (FIRE_LCD_WIDTH * FIRE_LCD_HEIGHT * FIRE_LCD_BYTES_PER_PIXEL)
 
 #define FIRE_LCD_COLOR_BLACK 0xFF000000UL
 #define FIRE_LCD_COLOR_WHITE 0xFFFFFFFFUL
@@ -19,6 +22,10 @@
 #define FIRE_LCD_COLOR_DARK 0xFF101820UL
 
 HAL_StatusTypeDef fire_lcd_init(void);
+void fire_lcd_blit_rgb565(uint32_t x, uint32_t y, uint32_t w, uint32_t h,
+                          const uint16_t *pixels, uint32_t stride_pixels);
+void fire_lcd_scroll_rect_up(uint32_t x, uint32_t y, uint32_t w, uint32_t h,
+                             uint32_t lines);
 void fire_lcd_clear(uint32_t color);
 void fire_lcd_fill_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color);
 void fire_lcd_draw_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color);

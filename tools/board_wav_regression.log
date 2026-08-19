@@ -1,457 +1,116 @@
-# board WAV regression 2026-08-13T10:17:31.4904645+08:00
-[cmd] error unknown mode '8PSK0F'
-[mode] selected 8PSK1200F source=serial
-[cmd] error unknown 'LEX'
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=742 empty=8875389 cb=372/371 in=117 lane=1 q=0 ov=1 maxq=16 peak=31Hz sq=10/35 open=0 chars=0 fm=0/0 fs=0
+# board WAV regression 2026-08-19T12:41:38.7740117+08:00
+[mode] selected BPSK31 source=serial
 [log] rx=HEX
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=1250 empty=15114404 cb=626/625 in=116 lane=1 q=0 ov=1 maxq=16 peak=31Hz sq=10/35 open=0 chars=0 fm=0/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=1505 empty=17840578 cb=753/753 in=7439 lane=1 q=0 ov=1 maxq=16 peak=1494Hz sq=82/35 open=1 chars=0 fm=1251/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=1759 empty=20396199 cb=880/880 in=7617 lane=1 q=0 ov=1 maxq=16 peak=1176Hz sq=60/35 open=1 chars=0 fm=939/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=2013 empty=22926623 cb=1007/1007 in=8115 lane=1 q=0 ov=1 maxq=16 peak=1557Hz sq=60/35 open=1 chars=0 fm=979/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=2268 empty=25467650 cb=1135/1134 in=7352 lane=1 q=0 ov=1 maxq=16 peak=1939Hz sq=58/35 open=1 chars=0 fm=1023/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=2522 empty=27983598 cb=1262/1261 in=7677 lane=1 q=0 ov=1 maxq=16 peak=1684Hz sq=65/35 open=1 chars=0 fm=1055/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=2776 empty=30482811 cb=1389/1388 in=6875 lane=1 q=0 ov=1 maxq=16 peak=1494Hz sq=62/35 open=1 chars=0 fm=1108/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=3031 empty=32987590 cb=1516/1516 in=7718 lane=1 q=0 ov=1 maxq=16 peak=1811Hz sq=62/35 open=1 chars=0 fm=967/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=3285 empty=35522611 cb=1643/1643 in=7649 lane=1 q=0 ov=1 maxq=16 peak=1430Hz sq=66/35 open=1 chars=0 fm=1014/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=3539 empty=38077584 cb=1770/1770 in=7546 lane=1 q=0 ov=1 maxq=16 peak=1557Hz sq=61/35 open=1 chars=0 fm=1060/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=3794 empty=40686740 cb=1898/1897 in=7472 lane=1 q=0 ov=1 maxq=16 peak=1366Hz sq=60/35 open=1 chars=0 fm=976/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=4048 empty=43328235 cb=2025/2024 in=7845 lane=1 q=0 ov=1 maxq=16 peak=1811Hz sq=62/35 open=1 chars=0 fm=1010/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=4302 empty=45964742 cb=2152/2151 in=7997 lane=1 q=0 ov=1 maxq=16 peak=1811Hz sq=62/35 open=1 chars=0 fm=999/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=4557 empty=48556865 cb=2279/2279 in=7971 lane=1 q=0 ov=1 maxq=16 peak=1239Hz sq=62/35 open=1 chars=0 fm=1017/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=4811 empty=51156870 cb=2406/2406 in=7717 lane=1 q=0 ov=1 maxq=16 peak=1303Hz sq=60/35 open=1 chars=0 fm=1024/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=5065 empty=53783635 cb=2533/2533 in=7769 lane=1 q=0 ov=1 maxq=16 peak=1494Hz sq=59/35 open=1 chars=0 fm=994/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=5319 empty=56325345 cb=2660/2660 in=7922 lane=1 q=0 ov=1 maxq=16 peak=1684Hz sq=56/35 open=1 chars=0 fm=964/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=5574 empty=58888400 cb=2788/2787 in=8315 lane=1 q=0 ov=1 maxq=16 peak=1557Hz sq=58/35 open=1 chars=0 fm=980/0 fs=0
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=5828 empty=61441712 cb=2915/2914 in=7540 lane=1 q=0 ov=1 maxq=16 peak=1684Hz sq=60/35 open=1 chars=0 fm=975/0 fs=0
-[rxhex] 65
-[rxhex] 20 61 50 75 2C
-[rxhex] 3C
-[rxhex] 2A 7B 20
-[rxhex] 43
-[rxhex] 69
-[rxhex] 21
-[rxhex] 61
-[rxhex] 69 6F
-[rxhex] 0A
-[rxhex] 20
-[rxhex] 52 6E
-[rxhex] 6F 68 68
-[rxhex] 20 50 4C
-[rxhex] 61 20
-[rxhex] 6E 61
-[rxhex] 6E
-[rxhex] 72 71
-[rxhex] 5C 20
-[rxhex] 49 76 6A
-[rxhex] 63 70 20
-[rxhex] 6F 20
-[rxhex] 64 65
-[rxhex] 20
-[rxhex] 27
-[rxhex] 65
-[rxhex] 62
-[rxhex] 69 4C
-[rxhex] 6A 20 7A 6E 20
-[rxhex] 65 75
-[rxhex] 6F 20 78
-[rxhex] 74 6F
-[rxhex] 65 62 6E
-[rxhex] 61 72 20 20
-[rxhex] 2C 20
-[rxhex] 63 69 20
-[rxhex] 65 68 74
-[rxhex] 64
-[rxhex] 65
-[rxhex] 61
-[rxhex] 3E 74
-[rxhex] 71
-[rxhex] 44 53
-[rxhex] 72 69
-[rxhex] 6B 62
-[rxhex] 69 65 61 74
-[rxhex] 23 20 63
-[rxhex] 20
-[rxhex] 65
+[diag] mode=BPSK31 tone=1500Hz sel=1500Hz afc=1 sql=1 lock=0 blocks=1184 empty=2314604 cb=592/592 in=152 raw=215/224 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=0 ov=0 maxq=9 peak=31Hz sq=10/35 open=0 chars=0 fm=0/0 fs=0
+[diag] mode=BPSK31 tone=1500Hz sel=1500Hz afc=1 sql=1 lock=0 blocks=1438 empty=2817956 cb=719/719 in=144 raw=208/216 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=0 ov=0 maxq=9 peak=31Hz sq=10/35 open=0 chars=0 fm=0/0 fs=0
 [rxhex] 4F
-[rxhex] 74
-[rxhex] 66 20 6F 69
-[rxhex] 75 7B
+[rxhex] 6E
+[diag] mode=BPSK31 tone=1500Hz sel=1500Hz afc=1 sql=1 lock=3 blocks=1692 empty=3315266 cb=846/846 in=8249 raw=8631/8656 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=0 ov=0 maxq=9 peak=1494Hz sq=49/35 open=1 chars=2 fm=0/0 fs=0
+[rxhex] 65
+[rxhex] 20
+[rxhex] 77
 [rxhex] 61
-[rxhex] 4E
-[rxhex] 71
-[rxhex] 62
-[rxhex] 6E 20
-[rxhex] 43 20
-[rxhex] 38
-[rxhex] 69 20 6C 20
-[rxhex] 20
-[rxhex] 6F 73 20
-[rxhex] 44 76
-[rxhex] 74 6C 6F 61
-[rxhex] 69 72 20
-[rxhex] 40 70
-[rxhex] 2C 28 4A
-[rxhex] 6E 20 20
-[rxhex] 74 20 41 20
-[rxhex] 70
-[rxhex] 73 26
-[rxhex] 20 20
-[rxhex] 65 20 4E
-[rxhex] 67 6E
-[rxhex] 7A 65 6E 4A 61 20 38 7D 7A 65 74
-[rxhex] 72 75 6F 7A
-[rxhex] 74 6A
 [rxhex] 72
-[rxhex] 63 20 67 63
-[rxhex] 78 7A
-[rxhex] 30
-[rxhex] 6B
-[rxhex] 74
-[rxhex] 28 20
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=6082 empty=63817262 cb=3042/3041 in=8463 lane=1 q=0 ov=1 maxq=16 peak=1748Hz sq=60/35 open=1 chars=184 fm=966/0 fs=0
-[rxhex] 69 20
-[rxhex] 73
-[rxhex] 74
-[rxhex] 6E 74 74
-[rxhex] 73
-[rxhex] 09 72
-[rxhex] 69 63
-[rxhex] 33 78
-[rxhex] 65 6F 74
-[rxhex] 65
-[rxhex] 70
-[rxhex] 75 2E
-[rxhex] 66 20
-[rxhex] 6F 6C 20 20
-[rxhex] 64
-[rxhex] 6E
-[rxhex] 30
-[rxhex] 65
-[rxhex] 74 20 20
-[rxhex] 6B 74
-[rxhex] 20 74
-[rxhex] 4C 74
-[rxhex] 66 71
-[rxhex] 69 20 76 20 74 20
-[rxhex] 2A 20
-[rxhex] 44 78 20
-[rxhex] 2B 6F
-[rxhex] 64 65
-[rxhex] 66 69 67 69 33 74 65 6E 5E 43 74
-[rxhex] 65 32
-[rxhex] 6E 20 64 74
-[rxhex] 20
-[rxhex] 75 55
-[rxhex] 4F
-[rxhex] 3C 4C
-[rxhex] 46 6F
-[rxhex] 73 72 6E 6F
-[rxhex] 74
-[rxhex] 5C
-[rxhex] 65 43 2C
-[rxhex] 73 74 6E
-[rxhex] 74 20 4A
-[rxhex] 6C 6C 3D 20
-[rxhex] 6E 78 20
-[rxhex] 68
-[rxhex] 75
-[rxhex] 7A
-[rxhex] 63 79
-[rxhex] 64 20
-[rxhex] 73 6F 66 74
-[rxhex] 6C 79 20
-[rxhex] 61 6E 64 20 73
-[rxhex] 61 69 64
-[rxhex] 2C 20
-[rxhex] 22 54 68 61
-[rxhex] 6E 6B 20
-[rxhex] 79 6F 75 20 73
-[rxhex] 6F 20 6D
-[rxhex] 75 63 68
-[rxhex] 2C 20 62
-[rxhex] 72 61
-[rxhex] 76
-[rxhex] 65 20
-[rxhex] 6C 69 74 74 6C
-[rxhex] 72 6B
-[rxhex] 66 74
-[rxhex] 20
-[rxhex] 20 20
-[rxhex] 74
-[rxhex] 76
-[rxhex] 20 20
-[rxhex] 72 6D 74
-[rxhex] 6F 67
-[rxhex] 25
-[rxhex] 55 61 34
-[rxhex] 5E 78 20 20 70 20 6E 45 74 65 6E 74
-[rxhex] 79 45 70
-[rxhex] 74 65 20 71
-[rxhex] 64 45 65 20
-[rxhex] 6E 20
-[rxhex] 61
-[rxhex] 33 69 31
-[rxhex] 72
-[rxhex] 6F 55 4F 74
-[rxhex] 49 20
-[rxhex] 75
-[rxhex] 79
-[rxhex] 32 20 53
-[rxhex] 72
-[rxhex] 3B
-[rxhex] 64
-[rxhex] 72 61
-[rxhex] 73 73
-[rxhex] 74 64
-[rxhex] 3C 75
-[rxhex] 77 65 6C
-[rxhex] 64 75 20
-[rxhex] 74 64
-[rxhex] 20 78 4C 20
-[rxhex] 20
-[rxhex] 44 74
-[rxhex] 20 20 20
-[rxhex] 65
-[rxhex] 65
-[rxhex] 6A 20 31
-[rxhex] 20 20 20 20
-[rxhex] 61 6E 6B 65 20
-[rxhex] 69
-[rxhex] 61
-[rxhex] 6D 64 5F 65 7C 65 63 20 65 20 78 5A 61 35 0D 69 74 75 72 65 6F 20 46
-[rxhex] 27 0D
-[rxhex] 75 52 31
-[rxhex] 68
-[rxhex] 74 20
-[rxhex] 60
-[rxhex] 52 65
-[rxhex] 7A 69
-[rxhex] 55 20 74 75 6C
-[rxhex] 65 20 72 61
-[rxhex] 62 62
-[rxhex] 69 74 20 69 6E 20
-[rxhex] 74 68 65 20
-[rxhex] 77 68 6F 6C
-[rxhex] 65 20 77
-[rxhex] 6F 6F 64 73
-[rxhex] 2E 0A
-[rxhex] 4F 6E 65
-[rxhex] 20 77 61 72
-[rxhex] 6D 20 61
-[rxhex] 6E 64 20 73 75
-[rxhex] 6E 6E 79
-[rxhex] 20 73
-[rxhex] 37
-[rxhex] 74
-[rxhex] 74 6B 65
-[rxhex] 6F
-[rxhex] 20
-[rxhex] 20
-[rxhex] 72
-[rxhex] 72
-[rxhex] 49
-[rxhex] 46
-[rxhex] 54 5E
-[rxhex] 20 61
-[rxhex] 45
-[rxhex] 6C 2C
-[rxhex] 73 20 73 6F
-[rxhex] 09 78
-[rxhex] 62 65 63
-[rxhex] 70 63 57
-[rxhex] 69 61 65 20 58 77 6E 20 62 6E
-[rxhex] 67 74 20
-[rxhex] 4E 73
-[rxhex] 6E
-[rxhex] 6F 74 6F
-[rxhex] 6D 65 72
-[rxhex] 2E
-[rxhex] 6E
-[rxhex] 6F
-[rxhex] 72 20 20
-[rxhex] 69
-[rxhex] 74 74 20
-[rxhex] 4E
-[diag] mode=8PSK1200F tone=1500Hz sel=1500Hz afc=1 sql=1 blocks=6337 empty=65860204 cb=3169/3169 in=6772 lane=1 q=0 ov=1 maxq=16 peak=1239Hz sq=62/35 open=1 chars=603 fm=992/0 fs=0
-[rxhex] 74 7A 65 65
-[rxhex] 78 20
-[rxhex] 09
-[rxhex] 20 75
-[rxhex] 62
-[rxhex] 65 25
-[rxhex] 69
-[rxhex] 6C
-[rxhex] 6F 65
-[rxhex] 6E 61
-[rxhex] 61 47
-[rxhex] 70 65 65
-[rxhex] 69 74 20
-[rxhex] 75 2A 20
-[rxhex] 74
-[rxhex] 27
-[rxhex] 74 20 26
-[rxhex] 73 20
-[rxhex] 7B
-[rxhex] 74 69 4C
-[rxhex] 7E 74 20 20 6E
-[rxhex] 6E 74
-[rxhex] 61 6B
-[rxhex] 77 41
-[rxhex] 5F
-[rxhex] 20
-[rxhex] 74 6C 20 65
-[rxhex] 69 63 20 74 65 6C 6F 20 20 65 39
-[rxhex] 52 29
-[rxhex] 46
-[rxhex] 6F 65
-[rxhex] 30 65
-[rxhex] 2E 6F
-[rxhex] 69 6E 63
-[rxhex] 65 20 76
-[rxhex] 6F 31 69
-[rxhex] 73 20 77 61
-[rxhex] 6C 6B 2C
-[rxhex] 20 75 6E 74 69
-[rxhex] 6C 20 68
-[rxhex] 65 20 68 65
-[rxhex] 61 72 64 20 61
-[rxhex] 20 73 6F
-[rxhex] 66 49
-[rxhex] 74
-[rxhex] 41
-[rxhex] 20 4E 67 20
-[rxhex] 73 6F 75
-[rxhex] 6E 64 20 6E 6F
-[rxhex] 74 20 66
-[rxhex] 61 72 20 61 77
-[rxhex] 61 79
-[rxhex] 2E
-[rxhex] 20 73
-[rxhex] 74 6F 70
-[rxhex] 70 65 64 20 68
-[rxhex] 6F 70
-[rxhex] 70 69 6E 67 20
-[rxhex] 61 6E 64
-[rxhex] 20 6C 69
-[rxhex] 73 74 65 6E 65
-[rxhex] 64 20 63 61
-[rxhex] 72 65 66 75
-[rxhex] 6C 6C
-[rxhex] 79 2E 20
-[rxhex] 54 68 65 20
-[rxhex] 63 72 79
-[rxhex] 20 63 61 6D 65
-[rxhex] 20 66 72
-[rxhex] 6F 6D 20 61 6E
-[rxhex] 20 6F
-[rxhex] 6C 64 20 6F
-[rxhex] 61 6B 20 74
-[rxhex] 72
-[rxhex] 65 65
-[rxhex] 78
-[rxhex] 73 20
-[rxhex] 6E 6E 61 65
-[rxhex] 62
-[rxhex] 64
-[rxhex] 79
-[rxhex] 35 62
-[rxhex] 60 6C
-[rxhex] 6E
-[rxhex] 74 20 4D
-[rxhex] 61 47
-[rxhex] 75 4E
-[rxhex] 65 50 74
-[rxhex] 20 74
-[rxhex] 26 53
-[rxhex] 48 20 64
-[rxhex] 20 20 64 20
-[rxhex] 76 20 75
-[rxhex] 65 74
-[rxhex] 6C 4E
 [rxhex] 6D
-[rxhex] 66
-[rxhex] 20 6E 65
-[rxhex] 6A 72 33
-[rxhex] 74 20 74
-[rxhex] 41
-[rxhex] 7A 43
+[rxhex] 20
+[rxhex] 61
 [rxhex] 6E
-[rxhex] 20 45 63 65
-[rxhex] 63
+[rxhex] 64
+[rxhex] 20
+[diag] mode=BPSK31 tone=1500Hz sel=1500Hz afc=1 sql=1 lock=3 blocks=1946 empty=3809383 cb=974/973 in=8016 raw=8394/8419 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=1 ov=0 maxq=9 peak=1494Hz sq=78/35 open=1 chars=13 fm=0/0 fs=0
+[rxhex] 73
+[rxhex] 75
+[rxhex] 6E
+[rxhex] 6E
+[rxhex] 79
+[rxhex] 20
+[rxhex] 73
+[rxhex] 70
+[rxhex] 72
+[diag] mode=BPSK31 tone=1500Hz sel=1500Hz afc=1 sql=1 lock=3 blocks=2201 empty=4303122 cb=1101/1100 in=1860 raw=1973/1980 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=0 ov=0 maxq=9 peak=1494Hz sq=90/35 open=1 chars=22 fm=0/0 fs=0
 [rxhex] 69
-[rxhex] 64 74 20 5D 20
-[rxhex] 3D
-[rxhex] 20 26 6E
-[rxhex] 64
-[rxhex] 64
-[rxhex] 6F 61
-[rxhex] 2B 43
+[rxhex] 6E
+[rxhex] 67
+[rxhex] 20
+[rxhex] 6D
+[rxhex] 6F
+[rxhex] 72
+[rxhex] 6E
+[rxhex] 69
+[rxhex] 6E
+[diag] mode=BPSK31 tone=1500Hz sel=1500Hz afc=1 sql=1 lock=3 blocks=2455 empty=4794377 cb=1228/1227 in=8244 raw=8552/8577 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=0 ov=0 maxq=9 peak=1494Hz sq=96/35 open=1 chars=32 fm=0/0 fs=0
+[rxhex] 67
+[rxhex] 2C
+[rxhex] 20
+[rxhex] 61
+[rxhex] 20
+[rxhex] 66
 [rxhex] 6C
-[rxhex] 2D 65
-[rxhex] 3B 72 71
-[rxhex] 30
-[rxhex] 45 51
-[rxhex] 65 69 6C
-[rxhex] 20 44
-[rxhex] 7D 20 75 20
-[rxhex] 65 72
+[rxhex] 75
+[diag] mode=BPSK31 tone=1500Hz sel=1500Hz afc=1 sql=1 lock=3 blocks=2964 empty=5788195 cb=1482/1482 in=136 raw=220/229 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=0 ov=0 maxq=9 peak=31Hz sq=98/35 open=1 chars=40 fm=0/0 fs=0
+[diag] mode=BPSK31 tone=1500Hz sel=1500Hz afc=1 sql=1 lock=3 blocks=3218 empty=6289637 cb=1609/1609 in=122 raw=199/208 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=0 ov=0 maxq=9 peak=31Hz sq=98/35 open=1 chars=40 fm=0/0 fs=0
+[cmd] error unknown 'MMMMODE 8PSK125MODE 8PSK125F'
+[mode] selected 8PSK125F source=serial
+[diag] mode=8PSK125F tone=1500Hz sel=1500Hz afc=1 sql=1 lock=0 blocks=3473 empty=6787764 cb=1742/1741 in=133 raw=203/212 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=10 ov=0 maxq=11 peak=0Hz sq=10/35 open=0 chars=0 fm=0/0 fs=0
+[cmd] error unknown 'LLOG HEX'
+[diag] mode=8PSK125F tone=1500Hz sel=1500Hz afc=1 sql=1 lock=0 blocks=3737 empty=7277252 cb=1869/1868 in=131 raw=210/219 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=0 ov=0 maxq=14 peak=31Hz sq=10/35 open=0 chars=0 fm=0/0 fs=0
+[cmd] error unknown log format 'HELOG HEX'
+[diag] mode=8PSK125F tone=1500Hz sel=1500Hz afc=1 sql=1 lock=0 blocks=3992 empty=7777088 cb=1996/1996 in=106 raw=182/191 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=0 ov=0 maxq=14 peak=31Hz sq=10/35 open=0 chars=0 fm=0/0 fs=0
+[log] rx=HEX
+[diag] mode=8PSK125F tone=1500Hz sel=1500Hz afc=1 sql=1 lock=0 blocks=4500 empty=8782232 cb=2250/2250 in=123 raw=190/199 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=0 ov=0 maxq=14 peak=31Hz sq=10/35 open=0 chars=0 fm=0/0 fs=0
+[diag] mode=8PSK125F tone=1500Hz sel=1500Hz afc=1 sql=1 lock=2 blocks=4748 empty=8950778 cb=2378/2378 in=8276 raw=8678/8704 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=8 ov=0 maxq=14 peak=1494Hz sq=89/35 open=1 chars=0 fm=886/881 fs=0
+[diag] mode=8PSK125F tone=1500Hz sel=1500Hz afc=1 sql=1 lock=2 blocks=5002 empty=8966883 cb=2505/2505 in=8638 raw=9059/9086 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=8 ov=0 maxq=14 peak=1494Hz sq=91/35 open=1 chars=0 fm=1240/1432 fs=1
+[rxhex] 20
+[rxhex] 2C 20 61 20
+[rxhex] 66
+[rxhex] 6C
+[rxhex] 75 66
+[rxhex] 66
+[rxhex] 79
+[rxhex] 20 6C
+[rxhex] 69 74
+[rxhex] 74
+[rxhex] 6C 65
+[rxhex] 20 72 61 62
+[rxhex] 62 69
+[rxhex] 74 20
+[rxhex] 6E 61
+[rxhex] 6D
 [rxhex] 65
-[rxhex] 78 65
+[rxhex] 64 20
 [rxhex] 4C
-[rxhex] 20 29 20
-[rxhex] 68 20
-[rxhex] 74 76
-[rxhex] 44 69
-[rxhex] 62 5D
-[rxhex] 4D 74 6F 61 61 20 74 68 65 20 74 72 65 65 2C 20 63 68 69 72 70 69 6E 67 20
-[rxhex] 6C 6F
-[rxhex] 75 64 6C 79 20
-[rxhex] 61 6E 64
-[rxhex] 20 68 65
-[rxhex] 6C 70 6C 65
-[rxhex] 73 73 6C
-[rxhex] 79 2E 20 54
-[rxhex] 68 65 20
-[rxhex] 74 72 65 65
-[rxhex] 20 77 61 73 20
-[rxhex] 74 61 6C
-[rxhex] 6C 20 61 6E 64
-[rxhex] 20 73 74 65
-[rxhex] 65 70 2C 20
-[rxhex] 77 74 75
-[rxhex] 38
-[rxhex] 6E 67 68 20
-[rxhex] 62 72
-[rxhex] 61 6E 63 68 65
-[rxhex] 73 20 74
-[rxhex] 68 61 74 20
-[rxhex] 77 65 72 65 20
-[rxhex] 68 61 72
-[rxhex] 64 20 74 6F 20
-[rxhex] 63 6C 69
-[rxhex] 6D 62 2E 20
-[rxhex] 4D 6F
-[rxhex] 73 74 20 73
-[rxhex] 6D 61 6C 6C
-[rxhex] 20 61 6E
-[rxhex] 69 6D 61 6C
-[rxhex] 73 20 77 6F
-[rxhex] 75 6C 64 20
-[rxhex] 63 68 6F
-[rxhex] 6F 73 65 20
-[rxhex] 74 6F 20 6C 65
-[rxhex] 61 76 65
-[rxhex] 2C 20 62 75
-[rxhex] 74 20 4C
-[rxhex] 75 6C 75
-[rxhex] 20 68 61 64 20
-[rxhex] 61 20 6B
-[rxhex] 69 6E 64 20 68
-[rxhex] 65 61 72
-[rxhex] 74 2E 20 48
-[rxhex] 65 20 77
-[rxhex] 61 6E 74 65
-[rxhex] 64 20 74 6F 20
-[rxhex] 68 65 6C
-[rxhex] 70 20 74 68 65 20
-[rxhex] 70 6F 6F
+[rxhex] 75 6C
+[rxhex] 75 20 68 6F
+[diag] mode=8PSK125F tone=1500Hz sel=1500Hz afc=1 sql=1 lock=3 blocks=5264 empty=9092506 cb=2632/2632 in=9211 raw=9604/9632 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=0 ov=0 maxq=14 peak=1430Hz sq=91/35 open=1 chars=39 fm=1265/1762 fs=1
+[rxhex] 70
+[rxhex] 70 65
+[rxhex] 64 20
+[rxhex] 68
+[rxhex] 61
+[rxhex] 70 70
+[rxhex] 69
+[rxhex] 6C
+[rxhex] 79 20
+[cmd] error unknown 'MODPSK250F'
+[diag] mode=8PSK125F tone=1500Hz sel=1500Hz afc=1 sql=1 lock=3 blocks=5518 empty=9536324 cb=2759/2759 in=141 raw=213/222 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=0 ov=0 maxq=14 peak=31Hz sq=90/35 open=1 chars=54 fm=1265/1760 fs=1
+[mode] selected 8PSK250F source=serial
+[log] rx=HEX
+[diag] mode=8PSK250F tone=1500Hz sel=1500Hz afc=1 sql=1 lock=0 blocks=6027 empty=10501260 cb=3014/3013 in=122 raw=203/212 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=0 ov=0 maxq=14 peak=31Hz sq=10/35 open=0 chars=0 fm=0/0 fs=0
+[diag] mode=8PSK250F tone=1500Hz sel=1500Hz afc=1 sql=1 lock=2 blocks=6274 empty=10781467 cb=3142/3141 in=7934 raw=8318/8343 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=9 ov=0 maxq=14 peak=1494Hz sq=95/35 open=1 chars=0 fm=878/0 fs=0
+[diag] mode=8PSK250F tone=1500Hz sel=1500Hz afc=1 sql=1 lock=2 blocks=6530 empty=10795988 cb=3270/3269 in=7240 raw=7548/7571 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=9 ov=0 maxq=14 peak=1430Hz sq=92/35 open=1 chars=0 fm=1494/906 fs=0
+[diag] mode=8PSK250F tone=1500Hz sel=1500Hz afc=1 sql=1 lock=2 blocks=6786 empty=10808403 cb=3398/3397 in=7737 raw=8106/8131 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=9 ov=0 maxq=14 peak=1557Hz sq=90/35 open=1 chars=0 fm=1494/1309 fs=0
+[rxhex] 69
+[rxhex] 73 65
+[rxhex] 73 20
+[rxhex] 66
+[rxhex] 6F
+[rxhex] 72 20
+[rxhex] 68 69 73 20 66 61 6D 69 6C 79 27 73 20 64 69 6E
+[rxhex] 6E 65 72 2E 0A 54 68 65 20 66
+[rxhex] 6F
+[rxhex] 72 65
+[rxhex] 73 74
+[rxhex] 20
+[rxhex] 77 61
+[diag] mode=8PSK250F tone=1500Hz sel=1500Hz afc=1 sql=1 lock=3 blocks=7042 empty=10817541 cb=3526/3525 in=7967 raw=8266/8291 lane=1 force=-1 adc=0 ana=6 agc=1 clip=0 q=9 ov=0 maxq=14 peak=1430Hz sq=90/35 open=1 chars=43 fm=1575/1309 fs=0
+[rxhex] 73 20 71 75 69 65 74 20 61 6E 64 20 6C 69 76 65

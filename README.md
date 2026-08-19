@@ -38,6 +38,17 @@ cmake --build --preset debug
 
 ## Flash
 
+For the connected Fire-DAP CMSIS-DAP probe, use the JTAG flow:
+
+```powershell
+.\tools\openocd_flash_cmsis_dap_jtag.ps1
+```
+
+The default OpenOCD path is the locally installed Espressif distribution; override it with
+`-OpenOcd <path-to-openocd.exe>` when using a different installation.
+
+For an ST-Link connected through SWD, the STM32CubeProgrammer command remains available:
+
 ```powershell
 C:\ProgramData\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe -c port=SWD -w build\debug\stm32h743iit6_psk_modem.elf -v -rst
 ```

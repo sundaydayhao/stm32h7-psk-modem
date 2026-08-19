@@ -7,15 +7,22 @@
 #define LV_COLOR_16_SWAP 0
 
 #define LV_MEM_CUSTOM 0
-#define LV_MEM_SIZE (96U * 1024U)
+/*
+ * Keep LVGL's pointer-heavy allocator in DTCM.  The external-SDRAM allocator
+ * pool produced invalid 0xC018xxxx object pointers after repeated refreshes.
+ * The large pixel buffers remain in external SDRAM.
+ */
+#define LV_MEM_ADR 0
+#define LV_MEM_SIZE (24U * 1024U)
+#define LV_MEM_POOL_INCLUDE "app/ui/lvgl_memory.h"
+#define LV_MEM_POOL_ALLOC(size) lvgl_mem_pool_alloc(size)
 #define LV_MEMCPY_MEMSET_STD 1
 
 #define LV_DISP_DEF_REFR_PERIOD 30
 #define LV_INDEV_DEF_READ_PERIOD 30
 
-#define LV_TICK_CUSTOM 1
-#define LV_TICK_CUSTOM_INCLUDE "stm32f7xx_hal.h"
-#define LV_TICK_CUSTOM_SYS_TIME_EXPR (HAL_GetTick())
+/* display_tick_inc() advances LVGL from HAL_SYSTICK_Callback(). */
+#define LV_TICK_CUSTOM 0
 
 #define LV_DPI_DEF 130
 #define LV_DRAW_COMPLEX 1
@@ -51,7 +58,7 @@
 #define LV_USE_ARC 0
 #define LV_USE_TABLE 0
 #define LV_USE_TEXTAREA 0
-#define LV_USE_CANVAS 1
+#define LV_USE_CANVAS 0
 #define LV_USE_KEYBOARD 0
 #define LV_USE_SPINNER 0
 

@@ -3,7 +3,7 @@
 #include <string.h>
 
 #define SDRAM_BANK_ADDR 0xD0000000UL
-#define LCD_FB_ADDR 0xD0000000UL
+#define LCD_FB_ADDR FIRE_LCD_FRAMEBUFFER_ADDR
 #define SDRAM_TIMEOUT 0xFFFFUL
 
 #define LCD_HBP 46U
@@ -12,6 +12,7 @@
 #define LCD_VSW 1U
 #define LCD_HFP 210U
 #define LCD_VFP 22U
+#define DMA2D_SCROLL_TIMEOUT 1000000U
 
 static SDRAM_HandleTypeDef hsdram1;
 static LTDC_HandleTypeDef hltdc;
@@ -62,6 +63,95 @@ HAL_StatusTypeDef fire_lcd_init(void)
     __HAL_LTDC_ENABLE(&hltdc);
     g_fire_lcd_debug_stage = 5U;
     return HAL_OK;
+}
+
+void fire_lcd_blit_rgb565(uint32_t x, uint32_t y, uint32_t w, uint32_t h,
+                          const uint16_t *pixels, uint32_t stride_pixels)
+{
+    if (!pixels || x >= FIRE_LCD_WIDTH || y >= FIRE_LCD_HEIGHT) {
+        return;
+    }
+    if (x + w > FIRE_LCD_WIDTH) {
+        w = FIRE_LCD_WIDTH - x;
+    }
+    if (y + h > FIRE_LCD_HEIGHT) {
+        h = FIRE_LCD_HEIGHT - y;
+    }
+
+    for (uint32_t row = 0; row < h; ++row) {
+        uint8_t *dst = &fb[((y + row) * FIRE_LCD_WIDTH + x) * FIRE_LCD_BYTES_PER_PIXEL];
+        const uint16_t *src = &pixels[row * stride_pixels];
+        for (uint32_t col = 0; col < w; ++col) {
+            const uint16_t color = src[col];
+            const uint8_t red5 = (uint8_t)((color >> 11) & 0x1fU);
+            const uint8_t green6 = (uint8_t)((color >> 5) & 0x3fU);
+            const uint8_t blue5 = (uint8_t)(color & 0x1fU);
+            dst[0] = (uint8_t)((blue5 << 3) | (blue5 >> 2));
+            dst[1] = (uint8_t)((green6 << 2) | (green6 >> 4));
+            dst[2] = (uint8_t)((red5 << 3) | (red5 >> 2));
+            dst += FIRE_LCD_BYTES_PER_PIXEL;
+        }
+    }
+}
+
+void fire_lcd_scroll_rect_up(uint32_t x, uint32_t y, uint32_t w, uint32_t h,
+                             uint32_t lines)
+{
+    if (x >= FIRE_LCD_WIDTH || y >= FIRE_LCD_HEIGHT || w == 0U || h <= lines) {
+        return;
+    }
+    if (x + w > FIRE_LCD_WIDTH) {
+        w = FIRE_LCD_WIDTH - x;
+    }
+    if (y + h > FIRE_LCD_HEIGHT) {
+        h = FIRE_LCD_HEIGHT - y;
+    }
+    if (h <= lines) {
+        return;
+    }
+
+    uint8_t *const dst = &fb[(y * FIRE_LCD_WIDTH + x) * FIRE_LCD_BYTES_PER_PIXEL];
+    const uint8_t *const src = &fb[((y + lines) * FIRE_LCD_WIDTH + x) *
+                                   FIRE_LCD_BYTES_PER_PIXEL];
+    const uint32_t copy_lines = h - lines;
+
+    /*
+     * Both areas live in the non-cacheable LTDC frame buffer.  DMA2D moves
+     * rows from low to high addresses, so every source row is consumed before
+     * its destination can become the following source row.  This preserves
+     * the required in-place upward scroll without stalling the modem on a
+     * CPU copy of nearly 200 KiB for every spectrum line.
+     */
+    __HAL_RCC_DMA2D_CLK_ENABLE();
+    DMA2D->CR = 0U; /* Register-to-memory mode 0: memory-to-memory. */
+    DMA2D->IFCR = DMA2D_IFCR_CTEIF | DMA2D_IFCR_CTCIF;
+    DMA2D->FGMAR = (uint32_t)src;
+    DMA2D->FGOR = FIRE_LCD_WIDTH - w;
+    DMA2D->FGPFCCR = DMA2D_FGPFCCR_CM_0; /* RGB888 */
+    DMA2D->OMAR = (uint32_t)dst;
+    DMA2D->OOR = FIRE_LCD_WIDTH - w;
+    DMA2D->OPFCCR = DMA2D_OPFCCR_CM_0; /* RGB888 */
+    DMA2D->NLR = (w << DMA2D_NLR_PL_Pos) | copy_lines;
+    DMA2D->CR = DMA2D_CR_START;
+
+    uint32_t timeout = DMA2D_SCROLL_TIMEOUT;
+    while ((DMA2D->ISR & (DMA2D_ISR_TCIF | DMA2D_ISR_TEIF)) == 0U && timeout-- != 0U) {
+    }
+
+    const uint32_t status = DMA2D->ISR;
+    DMA2D->IFCR = DMA2D_IFCR_CTEIF | DMA2D_IFCR_CTCIF;
+    if ((status & DMA2D_ISR_TCIF) != 0U) {
+        return;
+    }
+
+    /* Keep the display usable if DMA2D is unavailable or reports an error. */
+    const size_t row_bytes = (size_t)w * FIRE_LCD_BYTES_PER_PIXEL;
+    for (uint32_t row = 0U; row < copy_lines; ++row) {
+        uint8_t *row_dst = &fb[((y + row) * FIRE_LCD_WIDTH + x) * FIRE_LCD_BYTES_PER_PIXEL];
+        const uint8_t *row_src = &fb[((y + row + lines) * FIRE_LCD_WIDTH + x) *
+                                     FIRE_LCD_BYTES_PER_PIXEL];
+        memmove(row_dst, row_src, row_bytes);
+    }
 }
 
 void fire_lcd_clear(uint32_t color)

@@ -6,6 +6,7 @@
 void SysTick_Handler(void)
 {
     HAL_IncTick();
+    HAL_SYSTICK_IRQHandler();
 }
 
 void DMA1_Stream0_IRQHandler(void)

@@ -38,6 +38,13 @@ typedef enum {
 
 typedef void (*psk_rtty_char_cb_t)(char c, void *userdata);
 
+typedef enum {
+    PSK_RTTY_LOCK_ACQUIRE = 0,
+    PSK_RTTY_LOCK_SIGNAL,
+    PSK_RTTY_LOCK_FEC,
+    PSK_RTTY_LOCK_READY,
+} psk_rtty_lock_state_t;
+
 typedef struct {
     psk_rtty_mode_t mode;
     int sample_rate_hz;
@@ -108,11 +115,15 @@ typedef struct {
     uint8_t carriers;
     uint8_t bits_per_symbol;
     uint8_t psk_family;
+    uint8_t decision_directed_afc;
     uint8_t fec_enabled;
     uint8_t fec_punctured;
     uint8_t use_mfsk_varicode;
     uint32_t fec_pair_count;
     uint8_t fec_dual_branch;
+    uint8_t fec_locked_branch;
+    uint8_t fec_vote_candidate;
+    uint8_t fec_vote_count;
     uint8_t fec_rxbitstate;
     uint8_t fec_bit_phase;
     uint8_t fec_last_encoded_bit;
@@ -129,6 +140,8 @@ typedef struct {
     uint8_t fec_k;
     uint8_t vit_traceback;
     uint8_t vit_chunksize;
+    uint8_t fec_settle_tracebacks;
+    uint8_t fec_settle_half_interleaves;
     uint16_t fec_state;
     uint32_t fec_mask;
     uint32_t fec_poly1;
@@ -152,6 +165,7 @@ typedef struct {
     int sq_thresh;
     int squelch_enabled;
     int squelch_speed;
+    uint8_t lock_state;
     int on_count;
     int off_count;
     int p_count;

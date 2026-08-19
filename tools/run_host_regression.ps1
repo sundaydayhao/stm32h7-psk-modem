@@ -51,8 +51,11 @@ foreach ($mode in $modes) {
 }
 
 $results | Format-Table -AutoSize -Wrap
-$passCount = ($results | Where-Object { $_.Result -eq "PASS" }).Count
-$failCount = ($results | Where-Object { $_.Result -eq "FAIL" }).Count
-$noWavCount = ($results | Where-Object { $_.Result -eq "NO-WAV" }).Count
+$passCount = @($results | Where-Object { $_.Result -eq "PASS" }).Count
+$failCount = @($results | Where-Object { $_.Result -eq "FAIL" }).Count
+$noWavCount = @($results | Where-Object { $_.Result -eq "NO-WAV" }).Count
 Write-Output ""
 Write-Output "PASS=$passCount FAIL=$failCount NO-WAV=$noWavCount TOTAL=$($results.Count)"
+if ($failCount -ne 0 -or $noWavCount -ne 0) {
+    exit 1
+}

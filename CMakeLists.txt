@@ -81,10 +81,16 @@ target_sources(${PROJECT_NAME} PRIVATE
     app/platform/audio_decim.c
     app/platform/audio_input.c
     app/platform/touch_gt911.c
+    app/ui/lvgl_memory.c
     app/ui/display.c
     third_party/psk_rtty/psk_rtty.c
     ${HAL_SRC}
 )
+
+set(LV_CONF_PATH "${CMAKE_SOURCE_DIR}/lv_conf.h" CACHE STRING "LVGL configuration header" FORCE)
+set(LV_LVGL_H_INCLUDE_SIMPLE ON CACHE BOOL "Use a simple lvgl.h include" FORCE)
+set(LV_CONF_INCLUDE_SIMPLE ON CACHE BOOL "Use a simple lv_conf.h include" FORCE)
+add_subdirectory(third_party/lvgl EXCLUDE_FROM_ALL)
 
 set_source_files_properties(
     app/dsp/spectrum.c
@@ -100,7 +106,7 @@ target_link_options(${PROJECT_NAME} PRIVATE
     --specs=nano.specs
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE m)
+target_link_libraries(${PROJECT_NAME} PRIVATE m lvgl)
 
 get_filename_component(TOOLCHAIN_BIN_DIR "${CMAKE_C_COMPILER}" DIRECTORY)
 find_program(ARM_SIZE_TOOL
